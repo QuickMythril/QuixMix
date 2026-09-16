@@ -1,0 +1,11 @@
+# Qortium Music changelog
+
+## Change Entries
+
+### 2026-09-16 — Build the initial QDN music player
+
+Add a local-first playlist player with paired audio/video versions, static covers,
+Audio only mode, synchronized lyrics and commentary, mobile fullscreen overlays,
+a playlist editor and Home-mediated resource upload flows. Include local-file
+preview, original demo fixtures, validation and browser regressions so the app can
+be tried before choosing a QDN publication identity.

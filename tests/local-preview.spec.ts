@@ -1,0 +1,40 @@
+import { test, expect } from '@playwright/test';
+import path from 'node:path';
+const fixture=(name:string)=>path.resolve('public/demo',name);
+test('local files preview both versions and timed text without QDN writes',async({page})=>{
+  const remote:string[]=[];page.on('request',req=>{if(req.url().includes('24891'))remote.push(req.url());});
+  await page.goto('/');await page.getByText('Preview your files before uploading',{exact:true}).click();
+  const form=page.locator('.local-preview');
+  await form.getByLabel('Track title',{exact:true}).fill('My local song');
+  await form.getByLabel('Audio',{exact:true}).setInputFiles(fixture('first-light.mp3'));
+  await form.getByLabel('Video',{exact:true}).setInputFiles(fixture('first-light.mp4'));
+  await form.getByLabel('Cover',{exact:true}).setInputFiles(fixture('cover.svg'));
+  await form.getByLabel('Lyrics',{exact:true}).setInputFiles(fixture('lyrics.vtt'));
+  await form.getByLabel('Commentary',{exact:true}).setInputFiles(fixture('commentary.vtt'));
+  await form.getByLabel('Versions have matching edits').check();
+  await form.getByRole('button',{name:'Preview files'}).click();
+  await expect(page.getByRole('heading',{name:'My local song',exact:true})).toHaveCount(2);
+  await expect.poll(()=>page.locator('video').evaluate(v=>v.readyState)).toBeGreaterThan(0);
+  await page.getByRole('slider',{name:'Seek',exact:true}).fill('7');
+  await expect(page.getByTestId('lyrics-overlay')).toContainText('A quiet place');
+  await page.getByRole('checkbox',{name:'Audio only',exact:true}).check();
+  await expect(page.getByAltText('My local song cover')).toBeVisible();
+  await expect.poll(()=>page.locator('video').evaluate(v=>v.currentTime)).toBeGreaterThan(6.8);
+  expect(remote).toEqual([]);
+});
+test('invalid local timed text preserves the current playlist',async({page})=>{
+  await page.goto('/');await page.getByText('Preview your files before uploading',{exact:true}).click();
+  const form=page.locator('.local-preview');
+  await form.getByLabel('Audio',{exact:true}).setInputFiles(fixture('first-light.mp3'));
+  await form.getByLabel('Lyrics',{exact:true}).setInputFiles({name:'broken.vtt',mimeType:'text/vtt',buffer:Buffer.from('not a vtt file')});
+  await form.getByRole('button',{name:'Preview files'}).click();
+  await expect(form.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('heading',{name:'First light',exact:true})).toBeVisible();
+});
+test('container fullscreen retains both text overlays',async({page})=>{
+  await page.goto('/');await expect(page.getByTestId('lyrics-overlay')).toBeVisible();
+  await page.getByRole('button',{name:'Fullscreen',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>Boolean(document.fullscreenElement?.querySelector('[data-testid="lyrics-overlay"]')&&document.fullscreenElement?.querySelector('[data-testid="commentary-overlay"]')))).toBe(true);
+  await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>document.fullscreenElement===null)).toBe(true);
+});
