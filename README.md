@@ -1,8 +1,9 @@
-# Music for Qortium
+# QuixMix for Qortium
 
 A static QDN playlist player for audio, video, synchronized lyrics and timed text
-commentary. Built with React, TypeScript and Vite. Working app title: **Music**.
-No QDN publishing identity has been selected or registered.
+commentary. Built with React, TypeScript and Vite. App name: **QuixMix**.
+Source: [QuickMythril/QuixMix](https://github.com/QuickMythril/QuixMix).
+Previewnet identity: `APP/QuixMix/QuixMix`.
 
 ## Run locally
 
@@ -90,9 +91,14 @@ npm run test:browser
 Browser tests use `/usr/bin/chromium`, overridable with `CHROMIUM_PATH`, and port
 4183. See `docs/STATUS.md` for observed verification and remaining host acceptance.
 
-App publication is a separate step. The generated preview publishing helper
-requires explicit `QORTIUM_MUSIC_QDN_NAME`; do not use it until the target/account
-is chosen. The helper is for configured Previewnet accounts, not production wallets.
+App publication is a separate step. After choosing the target identity, run
+`npm run build`, then configure the generated preview publishing helper with
+`QUIXMIX_QDN_NAME` and `QUIXMIX_ACCOUNT_PATH`. The account JSON must contain
+`accountAddress`, `accountPublicKey` and `accountPrivateKey`; keep that file
+outside the repository. The helper publishes the `APP` resource under the
+`QuixMix` identifier with the `QuixMix` title by default. It accepts only a
+trusted loopback Qortium Core API and is intended for the configured Previewnet
+account, not production wallets.
 
 ## Demo provenance
 

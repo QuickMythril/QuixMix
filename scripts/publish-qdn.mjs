@@ -1,12 +1,14 @@
+import { createPrivateKey, createPublicKey } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, readlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ENV_PREFIX = 'QORTIUM_MUSIC';
+const ENV_PREFIX = 'QUIXMIX';
 const DEFAULT_NODE_API_URL = 'http://127.0.0.1:24891';
-const DEFAULT_IDENTIFIER = 'qortium-music';
-const DEFAULT_TITLE = 'Music';
+const DEFAULT_IDENTIFIER = 'QuixMix';
+const DEFAULT_TITLE = 'QuixMix';
 const DEFAULT_DESCRIPTION = 'QDN playlists with audio, video, lyrics and commentary';
 const POLL_INTERVAL_MS = 5_000;
 const POLL_TIMEOUT_MS = 180_000;
@@ -22,15 +24,15 @@ function readEnv(name) {
 
 const nodeApiUrl = (readEnv('NODE_API_URL') ?? DEFAULT_NODE_API_URL).replace(/\/+$/, '');
 const publishName = readEnv('QDN_NAME');
-if (!publishName) throw new Error('Set QORTIUM_MUSIC_QDN_NAME explicitly after choosing the app publication identity.');
+if (!publishName) throw new Error('Set QUIXMIX_QDN_NAME explicitly after choosing the app publication identity.');
 const identifier = readEnv('QDN_IDENTIFIER') ?? DEFAULT_IDENTIFIER;
 const publishTitle = readEnv('QDN_TITLE') ?? DEFAULT_TITLE;
 const service = readEnv('QDN_SERVICE') ?? 'APP';
 const distPath = path.resolve(repoRoot, readEnv('DIST_PATH') ?? 'dist');
 const apiKeyPath = expandHomePath(readEnv('NODE_API_KEY_PATH') ?? '~/qortium/git/qortium-core/preview/apikey.txt');
-const previewAccountsPath = expandHomePath(
-  readEnv('PREVIEW_ACCOUNTS_PATH') ?? '~/qortium/git/qortium-core/preview/secrets/initial-minting-accounts.json',
-);
+const accountPath = readEnv('ACCOUNT_PATH');
+if (!accountPath) throw new Error('Set QUIXMIX_ACCOUNT_PATH to the dedicated publisher account JSON.');
+if (!isLoopbackNodeApiUrl()) throw new Error('Publishing requires a trusted loopback Core API.');
 
 function expandHomePath(filePath) {
   if (filePath === '~') {
@@ -286,13 +288,15 @@ function buildRegisterNameRawBytes58({ account, data, name, timestamp }) {
 }
 
 function getLocalPreviewAccount() {
-  const previewAccounts = readJson(previewAccountsPath);
-  const account = previewAccounts.accounts?.find((item) => item.role === 'local');
-
+  const account = readJson(expandHomePath(accountPath));
   if (!account?.accountAddress || !account?.accountPrivateKey || !account?.accountPublicKey) {
-    throw new Error(`Local preview account was not found in ${previewAccountsPath}.`);
+    throw new Error('Publisher account must include address, private key and public key.');
   }
-
+  const seed = decodeBase58(account.accountPrivateKey);
+  if (seed.length !== 32) throw new Error('Publisher private key must be a 32-byte seed.');
+  const key = createPrivateKey({ key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), seed]), format: 'der', type: 'pkcs8' });
+  const publicKey = createPublicKey(key).export({ format: 'der', type: 'spki' }).subarray(-32);
+  if (encodeBase58(publicKey) !== account.accountPublicKey) throw new Error('Publisher key pair does not match.');
   return account;
 }
 
@@ -327,6 +331,7 @@ function appendQuery(pathname, query) {
 async function request(pathname, options = {}) {
   const response = await fetch(`${nodeApiUrl}${pathname}`, {
     ...options,
+    redirect: 'error',
     headers: {
       ...(options.headers ?? {}),
     },
@@ -334,7 +339,7 @@ async function request(pathname, options = {}) {
   const text = await response.text();
 
   if (!response.ok) {
-    throw new Error(text || `${options.method ?? 'GET'} ${pathname} failed with HTTP ${response.status}.`);
+    throw new Error(`${options.method ?? 'GET'} ${pathname} failed with HTTP ${response.status}.`);
   }
 
   return text;
@@ -393,11 +398,12 @@ async function signAndProcess(rawUnsignedBytes58, privateKey58, computePath = '/
     throw new Error(`Transaction was not accepted: ${processResult}`);
   }
 
+  console.log(`Accepted transaction: ${encodeBase58(decodeBase58(signedBytes58).subarray(-64))}`);
   return signedBytes58;
 }
 
 async function getNameInfo(name) {
-  const response = await fetch(`${nodeApiUrl}/names/${encodeURIComponent(name)}`);
+  const response = await fetch(`${nodeApiUrl}/names/${encodeURIComponent(name)}`, { redirect: 'error' });
 
   if (response.status === 404) {
     return null;
@@ -432,7 +438,7 @@ async function ensureNameRegistered(name, account) {
     name,
     data: JSON.stringify({
       app: DEFAULT_TITLE,
-      purpose: 'QDN app preview for Music',
+      purpose: 'QuixMix music and video playlists',
     }),
   });
 
@@ -477,6 +483,10 @@ if (!existsSync(distPath)) {
   throw new Error(`Build output does not exist: ${distPath}. Run npm run build first.`);
 }
 
+if (execFileSync('git', ['branch', '--show-current'], { cwd: repoRoot, encoding: 'utf8' }).trim() !== 'main'
+    || execFileSync('git', ['status', '--porcelain'], { cwd: repoRoot, encoding: 'utf8' }).trim()) {
+  throw new Error('Publish only from a clean main checkout.');
+}
 const apiKeySource = getApiKeySource();
 const apiKey = apiKeySource.apiKey;
 const account = getLocalPreviewAccount();
@@ -485,14 +495,18 @@ console.log(`Node: ${nodeApiUrl}`);
 console.log(`Owner: ${account.accountAddress}`);
 console.log(`Resource: qdn://${service}/${publishName}/${identifier}`);
 console.log(`Source: ${distPath}`);
-console.log(`API key: loaded from ${apiKeySource.label}`);
 
+
+const info = await requestJson('/admin/info');
+if (info?.isTestNet !== true) throw new Error('This publisher is restricted to Previewnet.');
 const status = await requestJson('/admin/status');
 
 if (!status || status.syncPercent !== 100 || status.isSynchronizing) {
   throw new Error(`Node is not synced: ${JSON.stringify(status)}`);
 }
 
+const derivedAddress = await request(`/addresses/convert/${encodeURIComponent(account.accountPublicKey)}`);
+if (derivedAddress.trim() !== account.accountAddress) throw new Error('Publisher address does not match public key.');
 await ensureNameRegistered(publishName, account);
 await publishResource(account);
 

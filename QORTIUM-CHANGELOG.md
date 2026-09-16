@@ -1,6 +1,12 @@
-# Qortium Music changelog
+# QuixMix changelog
 
 ## Change Entries
+
+### 2026-09-16 — Name the app QuixMix and prepare dedicated Previewnet publishing
+
+Brand the app QuixMix and document QuickMythril/QuixMix. Require an explicit
+publisher account, verify its key pair and address, restrict signing to a local
+Previewnet node, and require a clean main checkout before publishing.
 
 ### 2026-09-16 — Unify light and dark themes with local Lexend typography
 

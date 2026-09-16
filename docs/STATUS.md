@@ -2,7 +2,8 @@
 
 Date: 2026-09-16 (America/New_York; verified 13:37 UTC).
 Repository: `/home/user/qortium/git/qortium-music`.
-Working title: Music. Local implementation only; no remote or QDN app publication.
+App name: QuixMix. GitHub target: QuickMythril/QuixMix.
+Previewnet publication target: APP/QuixMix/QuixMix.
 
 ## Implemented
 
@@ -43,8 +44,8 @@ Working title: Music. Local implementation only; no remote or QDN app publicatio
 - Actual packaged Home desktop/Android playback, fullscreen, upload permissions
   and source-token execution need a live acceptance pass. Mobile viewport Chromium
   tests are not physical-device or installed-Home proof.
-- Select an app title and APP publisher/identifier before test publication. The
-  helper requires an explicit QORTIUM_MUSIC_QDN_NAME and is Previewnet-oriented.
+- Dedicated publisher selected; the helper requires explicit QUIXMIX_QDN_NAME
+  and QUIXMIX_ACCOUNT_PATH and is restricted to local Previewnet.
 - No gapless/crossfade, offline library, word-level karaoke, LRC/SRT conversion,
   historical version pinning or synchronization of silent VIDEO with separate AUDIO.
 - The local preview is one track at a time. Local File objects are session-only;
@@ -92,3 +93,16 @@ plus 7 appearance), and production build. Appearance integration is verified wit
 Home-shaped injected values/messages; installed Home and physical-device acceptance
 remain pending. Naming, registration, GitHub repository creation and QDN publication
 follow the user's visual review and choice of app name.
+
+## QuixMix release preparation — 2026-09-16
+
+The user selected QuixMix and QuickMythril/QuixMix. Existing playlist schema and
+browser preference keys remain compatible. Publishing uses a dedicated account;
+private material is held outside the repository. The helper verifies the key pair,
+address, local Previewnet identity, sync, name ownership and clean main checkout.
+
+Release checks: 57 unit/contract tests, 21 browser tests and the production build passed. Publisher
+input guards reject missing identity/account configuration and non-loopback nodes.
+A read-only Claude Sonnet high-effort review found a name-lookup redirect gap;
+redirect following is now disabled there too. The parent verified registration
+serialization directly against Core's current RegisterName transformer.
