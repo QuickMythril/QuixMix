@@ -2,6 +2,13 @@
 
 ## Change Entries
 
+### 2026-09-16 — Unify light and dark themes with local Lexend typography
+
+Follow the device theme by default, add saved System/Light/Dark selection, and use
+shared neutral surfaces across the player and playlist editor. Apply Home's named
+accent to controls and highlights while gateways default to neutral. Bundle Lexend
+for the interface and timed text, with readable media overlays in either theme.
+
 ### 2026-09-16 — Keep cover images inside the player frame
 
 Constrain audio covers to the player bounds so square artwork remains fully

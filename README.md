@@ -37,6 +37,21 @@ for a different development Core. Browser development only permits reads.
 - Missing text/cover does not stop media. Failed tracks are skipped with bounded
   attempts; an entirely unavailable queue stops.
 
+## Appearance
+
+The **Theme** dropdown offers System (default), Light and Dark. System tracks the
+device preference live; a manual choice is saved locally and wins over system or
+Home theme messages. Player, preview and playlist editor share one palette.
+
+Surfaces stay neutral. In Home, named `qdnAccent` colors are read from the host
+query/globals and updated by `ACCENT_CHANGED` / `DISPLAY_SETTINGS_CHANGED`.
+Standalone browser/gateway use defaults to neutral, including when Core injects
+its own gateway display defaults. No external font requests are made: the app
+bundles **Lexend Variable**, including its SIL Open Font License at
+`public/fonts/lexend-license.txt`. Subtitles, commentary and form text use Lexend;
+unsupported glyphs can use the system fallback. Media overlays always retain
+light text on dark backdrops for readability over audio artwork and video.
+
 ## Playlist authoring
 
 **Create playlist** edits resources, versions, offsets and track ordering, imports

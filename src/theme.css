@@ -1,0 +1,54 @@
+/* Shared, neutral surfaces. Accent is deliberately limited to interaction. */
+:root {
+  --font-reading: 'Lexend Variable', 'Lexend', ui-sans-serif, system-ui, sans-serif;
+  --ink: #24262b;
+  --muted: #626570;
+  --background: #f6f6f8;
+  --surface: #ffffff;
+  --surface-soft: #ededf0;
+  --input: #ffffff;
+  --border: #d3d4d9;
+  --button: #e9e9ed;
+  --button-hover: #dedee4;
+  --accent-light: #434956;
+  --accent-dark: #d1d4dc;
+  --accent: var(--accent-light);
+  --on-accent: #ffffff;
+  --danger: #ab302b;
+  --danger-bg: #fceceb;
+  --danger-border: #dea7a3;
+  --media-ink: #f6f6f7;
+  --media-muted: #d4d4db;
+  --media-background: #101113;
+  --accent-soft: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  --accent-border: color-mix(in srgb, var(--accent) 35%, var(--border));
+  --accent-hover: color-mix(in srgb, var(--accent) 86%, var(--ink));
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  --ink: #eeeef1;
+  --muted: #b0b1bc;
+  --background: #141517;
+  --surface: #1e1f23;
+  --surface-soft: #25262c;
+  --input: #191a1e;
+  --border: #404149;
+  --button: #2b2c32;
+  --button-hover: #363740;
+  --accent: var(--accent-dark);
+  --on-accent: #15161a;
+  --danger: #ffaaa2;
+  --danger-bg: #392324;
+  --danger-border: #80504d;
+  color-scheme: dark;
+}
+:root[data-accent='clay'] { --accent-light: #965037; --accent-dark: #eab398; }
+:root[data-accent='green'] { --accent-light: #267345; --accent-dark: #94d7aa; }
+:root[data-accent='blue'] { --accent-light: #285cb1; --accent-dark: #a3c3ff; }
+:root[data-accent='orange'] { --accent-light: #a2490d; --accent-dark: #ffc18b; }
+:root[data-accent='purple'] { --accent-light: #7642a6; --accent-dark: #d6b2ff; }
+:root[data-accent='red'] { --accent-light: #b33039; --accent-dark: #ffabb0; }
+:root[data-accent='teal'] { --accent-light: #167066; --accent-dark: #83d8c8; }
+:root[data-accent='cyan'] { --accent-light: #076f86; --accent-dark: #88d9ee; }
+:root[data-accent='pink'] { --accent-light: #a62c70; --accent-dark: #f7abd1; }
+:root[data-accent='yellow'] { --accent-light: #806000; --accent-dark: #ebd47c; }

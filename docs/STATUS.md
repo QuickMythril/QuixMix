@@ -71,3 +71,24 @@ npm test
 npm run build
 npm run test:browser
 ```
+
+## Appearance update — 2026-09-16
+
+The editor's separate hardcoded light palette was replaced with shared semantic
+colors, fixing its mismatch with the player. System/Light/Dark selection now
+persists locally. System follows the device even inside Home; Home's accent is
+independent, restricted to named supported colors, and scoped to controls and
+highlights. Gateway/domain-mapped defaults remain neutral. Lexend Variable is
+bundled locally with its font license and used in the UI, lyrics and commentary.
+
+Seven new browser tests verify live system changes, saved overrides, Home accent
+messages/query precedence, gateway neutrality, editor/player contrast, actual
+Lexend glyph rendering through Chromium's platform-font inspection, and mobile
+390x844 bounds. Screenshots in `docs/screenshots/` with `-light` / `-dark` suffixes
+show the updated UI. The earlier unsuffixed screenshots record the initial MVP.
+
+Current validation: 57 unit/contract tests, 21 browser tests (14 playback/preview
+plus 7 appearance), and production build. Appearance integration is verified with
+Home-shaped injected values/messages; installed Home and physical-device acceptance
+remain pending. Naming, registration, GitHub repository creation and QDN publication
+follow the user's visual review and choice of app name.
