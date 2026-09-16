@@ -341,6 +341,7 @@ test('the ended event advances to the next track and keeps playback intent', asy
 
 test('malformed JSON import leaves the active demo intact and reports an error', async ({ page }) => {
   await page.getByRole('button', { name: 'Create playlist' }).click();
+  await page.getByText('Advanced: edit QDN references manually', { exact: true }).click();
   await page.getByText('Import or inspect JSON').click();
   await page.getByLabel('Playlist JSON').fill('{ broken');
   await page.getByRole('button', { name: 'Import JSON' }).click();

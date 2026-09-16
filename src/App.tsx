@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useAppearance, type ThemePreference } from './appearance';
 import { demoClient, demoPlaylist } from './demo';
 import { Player } from './Player';
+import { FolderCreator } from './FolderCreator';
 import { PlaylistEditor } from './PlaylistEditor';
 import { loadPlaylist, qdnClient } from './qdn';
 import { LocalPreview } from './LocalPreview';
@@ -19,12 +20,12 @@ export function App() {
   return <div className="app-shell">
     <header className="app-header"><a className="brand" href="#" onClick={e=>{e.preventDefault();setView('listen');}}><span className="brand-icon">♪</span><span>QuixMix<small>ON QORTIUM</small></span></a><nav aria-label="Main navigation"><button className={view==='listen'?'selected':''} onClick={()=>setView('listen')}>Listen</button><button className={view==='edit'?'selected':''} onClick={()=>setView('edit')}>Create playlist</button></nav><label className="theme-picker"><span>Theme</span><select aria-label="Theme" value={preference} onChange={event=>setPreference(event.target.value as ThemePreference)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label></header>
     <main>
-      <section className="intro"><div><span className="eyebrow">YOUR MUSIC, IN CONTEXT</span><h1>{playlist.title}</h1><p>{demo?'Try the self-contained demo, or open a playlist from QDN.':'A playlist of sound, moving pictures, and the stories behind them.'}</p></div><button className="subtle-button" onClick={()=>apply(demoPlaylist,true)}>Load demo</button></section>
+      <div hidden={view!=='listen'}><section className="intro"><div><span className="eyebrow">YOUR MUSIC, IN CONTEXT</span><h1>{playlist.title}</h1><p>{demo?'Try the self-contained demo, or open a playlist from QDN.':'A playlist of sound, moving pictures, and the stories behind them.'}</p></div><button className="subtle-button" onClick={()=>apply(demoPlaylist,true)}>Load demo</button></section>
       <details className="open-playlist"><summary>Open a QDN playlist</summary><form onSubmit={e=>{e.preventDefault();void open();}}><label>Publisher name<input required value={name} onChange={e=>setName(e.target.value)} placeholder="QDN name"/></label><label>Playlist identifier<input value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="default"/></label><button className="primary" disabled={loading}>{loading?'Loading…':'Open playlist'}</button>{loading&&<button type="button" onClick={()=>{pending.current?.abort();setLoading(false);}}>Cancel</button>}</form>{error&&<p role="alert" className="notice">{error}</p>}</details>
-      <LocalPreview onPreview={(p,c,cleanup)=>{apply(p);localCleanup.current=cleanup;setLocalClient(c);}}/>
+      <LocalPreview onPreview={(p,c,cleanup)=>{apply(p);localCleanup.current=cleanup;setLocalClient(c);}}/></div>
       <div hidden={view!=='listen'}><Player key={revision} playlist={playlist} client={localClient??(demo?demoClient:qdnClient)}/></div>
-      {view==='edit'&&localClient&&<p className="notice">This is a local preview. Upload the files under QDN resource names before publishing their playlist references.</p>}
-      {view==='edit'&&<PlaylistEditor playlist={playlist} onLoad={p=>apply(p)}/>}
+      <div hidden={view!=='edit'}><FolderCreator onPreview={(p,c,cleanup)=>{apply(p);localCleanup.current=cleanup;setLocalClient(c);}} onPublished={p=>apply(p)}/>
+      <details className="advanced-editor"><summary>Advanced: edit QDN references manually</summary>{view==='edit'&&<PlaylistEditor playlist={playlist} onLoad={p=>apply(p)}/>}</details></div>
     </main>
     <footer><span>QuixMix · Qortium QDN</span><span>{localClient?'Local preview · nothing uploaded':demo?'Local demo · original test media':'Resources served through your QDN node'}</span></footer>
   </div>;

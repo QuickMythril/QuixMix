@@ -18,24 +18,28 @@ async function appearance(page: Page): Promise<AppearanceState> {
 
 async function openApp(page: Page, path = '/') {
   await page.goto(path);
-  await expect(page.getByRole('heading', { name: 'First light', exact: true })).toBeVisible();
+  await expect(page.locator('.intro h1')).toBeVisible();
 }
 
-async function installHomeBridge(page: Page, accent = 'green', context = 'home') {
-  await page.addInitScript(({ initialAccent, initialContext }) => {
+async function installHomeBridge(page: Page, accent = 'green', context = 'home', theme?: string) {
+  await page.addInitScript(({ initialAccent, initialContext, initialTheme }) => {
     const host = window as typeof window & {
       _qdnAccent?: string;
       _qdnContext?: string;
+      _qdnTheme?: string;
+      qdnTheme?: string;
       qdnRequest?: (request: Record<string, unknown>) => Promise<unknown>;
     };
     host._qdnAccent = initialAccent;
     host._qdnContext = initialContext;
+    host._qdnTheme = initialTheme;
+    host.qdnTheme = initialTheme;
     host.qdnRequest = async (request) => {
       if (request.action === 'SHOW_ACTIONS') return [];
       if (request.action === 'WHICH_UI') return 'QORTIUM_HOME';
       throw new Error(`Appearance test rejected bridge action: ${String(request.action)}`);
     };
-  }, { initialAccent: accent, initialContext: context });
+  }, { initialAccent: accent, initialContext: context, initialTheme: theme });
 }
 
 async function dispatchDisplayMessage(page: Page, data: Record<string, unknown>) {
@@ -54,6 +58,39 @@ test('System follows prefers-color-scheme and updates while the page is open', a
 
   await page.emulateMedia({ colorScheme: 'light' });
   await expect.poll(() => appearance(page)).toMatchObject({ theme: 'light', preference: 'system', colorScheme: 'light' });
+});
+
+test('System follows Home theme defaults and live theme messages instead of the OS', async ({ page }) => {
+  await installHomeBridge(page, 'green', 'home', 'dark');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await openApp(page);
+  await expect.poll(() => appearance(page)).toMatchObject({
+    theme: 'dark', preference: 'system', colorScheme: 'dark',
+  });
+
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect.poll(() => appearance(page)).toMatchObject({ theme: 'dark', colorScheme: 'dark' });
+
+  await openApp(page, '/?theme=light');
+  await expect.poll(() => appearance(page)).toMatchObject({ theme: 'light', preference: 'system', colorScheme: 'light' });
+
+  await dispatchDisplayMessage(page, { action: 'THEME_CHANGED', theme: 'light' });
+  await expect.poll(() => appearance(page)).toMatchObject({ theme: 'light', preference: 'system', colorScheme: 'light' });
+
+  await dispatchDisplayMessage(page, { action: 'DISPLAY_SETTINGS_CHANGED', qdnTheme: 'dark' });
+  await expect.poll(() => appearance(page)).toMatchObject({ theme: 'dark', colorScheme: 'dark' });
+});
+
+test('Home keeps control after a live theme arrives without an initial host theme', async ({ page }) => {
+  await installHomeBridge(page, 'green', 'home', undefined);
+  await page.emulateMedia({ colorScheme: 'light' });
+  await openApp(page);
+  await expect.poll(() => appearance(page)).toMatchObject({ theme: 'light', preference: 'system' });
+
+  await dispatchDisplayMessage(page, { action: 'THEME_CHANGED', theme: 'dark' });
+  await expect.poll(() => appearance(page)).toMatchObject({ theme: 'dark', colorScheme: 'dark' });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect.poll(() => appearance(page)).toMatchObject({ theme: 'dark', colorScheme: 'dark' });
 });
 
 test('manual Light and Dark choices persist and override OS and Home theme changes', async ({ page }) => {
@@ -100,12 +137,14 @@ test('Home supplies named accents at startup and through both display messages',
 });
 
 test('Core gateway display defaults do not color the standalone app', async ({ page }) => {
-  await installHomeBridge(page, 'green', 'gateway');
+  await installHomeBridge(page, 'green', 'gateway', 'dark');
+  await page.emulateMedia({ colorScheme: 'light' });
   await openApp(page, '/?accent=blue');
-  await expect.poll(() => appearance(page)).toMatchObject({ accent: 'neutral' });
+  await expect.poll(() => appearance(page)).toMatchObject({ accent: 'neutral', theme: 'light', colorScheme: 'light' });
 
   await dispatchDisplayMessage(page, { action: 'ACCENT_CHANGED', qdnAccent: 'purple' });
-  await expect.poll(() => appearance(page)).toMatchObject({ accent: 'neutral' });
+  await dispatchDisplayMessage(page, { action: 'THEME_CHANGED', theme: 'dark' });
+  await expect.poll(() => appearance(page)).toMatchObject({ accent: 'neutral', theme: 'light', colorScheme: 'light' });
 });
 
 function rgbChannels(value: string): [number, number, number] {
@@ -154,14 +193,22 @@ test('main and editor surfaces have readable light and dark palettes', async ({ 
     else expect(luminance(mainColors.background), 'dark main background').toBeLessThan(0.15);
 
     await page.getByRole('button', { name: 'Create playlist' }).click();
-    const editorCard = page.locator('.editor-card').first();
+    const folderCard = page.locator('.folder-creator .folder-start');
+    await expect(folderCard).toBeVisible();
+    const folderColors = await renderedColors(folderCard);
+    expect(contrast(folderColors.foreground, folderColors.background), `${theme} folder card contrast`).toBeGreaterThanOrEqual(4.5);
+    if (theme === 'light') expect(luminance(folderColors.background), 'light folder background').toBeGreaterThan(0.7);
+    else expect(luminance(folderColors.background), 'dark folder background').toBeLessThan(0.15);
+
+    if (await page.locator('.advanced-editor').getAttribute('open') === null) await page.locator('.advanced-editor > summary').click();
+    const editorCard = page.locator('.advanced-editor .editor-card').first();
     await expect(editorCard).toBeVisible();
     const cardColors = await renderedColors(editorCard);
     const inputColors = await renderedColors(editorCard.locator('input').first());
-    expect(contrast(cardColors.foreground, cardColors.background), `${theme} editor card contrast`).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(inputColors.foreground, inputColors.background), `${theme} editor input contrast`).toBeGreaterThanOrEqual(4.5);
-    if (theme === 'light') expect(luminance(cardColors.background), 'light editor background').toBeGreaterThan(0.7);
-    else expect(luminance(cardColors.background), 'dark editor background').toBeLessThan(0.15);
+    expect(contrast(cardColors.foreground, cardColors.background), `${theme} advanced editor card contrast`).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(inputColors.foreground, inputColors.background), `${theme} advanced editor input contrast`).toBeGreaterThanOrEqual(4.5);
+    if (theme === 'light') expect(luminance(cardColors.background), 'light advanced editor background').toBeGreaterThan(0.7);
+    else expect(luminance(cardColors.background), 'dark advanced editor background').toBeLessThan(0.15);
     await page.getByRole('button', { name: 'Listen' }).click();
   }
 });
@@ -193,8 +240,13 @@ test('Lexend Variable is loaded and renders cue and editor text', async ({ page 
   expect(cueFonts.some((font) => /Lexend/i.test(font.familyName) && font.glyphCount > 0)).toBe(true);
 
   await page.getByRole('button', { name: 'Create playlist' }).click();
-  await expect(page.locator('.editor-heading h2')).toHaveCSS('font-family', /Lexend Variable/);
-  const editorFonts = await platformFonts(page, '.editor-heading h2');
+  await expect(page.locator('.folder-creator .editor-heading h2')).toHaveCSS('font-family', /Lexend Variable/);
+  const folderFonts = await platformFonts(page, '.folder-creator .editor-heading h2');
+  expect(folderFonts.some((font) => /Lexend/i.test(font.familyName) && font.glyphCount > 0)).toBe(true);
+
+  await page.locator('.advanced-editor > summary').click();
+  await expect(page.locator('.advanced-editor .editor-heading h2')).toHaveCSS('font-family', /Lexend Variable/);
+  const editorFonts = await platformFonts(page, '.advanced-editor .editor-heading h2');
   expect(editorFonts.some((font) => /Lexend/i.test(font.familyName) && font.glyphCount > 0)).toBe(true);
 });
 
@@ -205,10 +257,12 @@ test('mobile header, theme picker, and editor stay within the viewport in both t
   for (const theme of ['light', 'dark']) {
     await page.getByLabel('Theme').selectOption(theme);
     await page.getByRole('button', { name: 'Create playlist' }).click();
+    await expect(page.locator('.folder-creator')).toBeVisible();
+    if (await page.locator('.advanced-editor').getAttribute('open') === null) await page.locator('.advanced-editor > summary').click();
     await expect(page.locator('.editor-shell')).toBeVisible();
 
     const layout = await page.evaluate(() => {
-      const selectors = ['.app-header', '.app-header nav', '.theme-picker', '.theme-picker select', '.editor-shell'];
+      const selectors = ['.app-header', '.app-header nav', '.theme-picker', '.theme-picker select', '.folder-creator', '.editor-shell'];
       return {
         clientWidth: document.documentElement.clientWidth,
         scrollWidth: document.documentElement.scrollWidth,

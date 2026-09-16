@@ -2,6 +2,16 @@
 
 ## Change Entries
 
+### 2026-09-16 — Simplify album creation with folder import and Home theme following
+
+Follow Home's qdnTheme in System mode while retaining manual overrides and device
+fallback outside Home. Make folder selection, pairing review, local preview and
+guided publication the main creation flow. Import numbered filenames and explicit
+maps, convert SRT without time shifts, preserve per-version text, and retain the
+manual editor under Advanced. Stage small media directly and use Home's picker for
+files over 25 MiB, with in-session pause/resume and dependency readiness checks.
+Release 0.2.0; no Home changes or pilot-media publication.
+
 ### 2026-09-16 — Record the verified QuixMix Previewnet release
 
 Record the GitHub source, confirmed dedicated-name registration and APP publication,

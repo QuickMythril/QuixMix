@@ -4,6 +4,7 @@ import type { Playlist, ResourceClient, ResourceRef, ResourceService } from './m
 import { parsePlaylist } from './schema';
 
 const TEXT_MAX_BYTES=1024*1024;
+export const STAGED_FILE_MAX_BYTES=25*1024*1024;
 const ENCODED_MAX_BYTES=Math.ceil(TEXT_MAX_BYTES/3)*4+4;
 const READY_TIMEOUT=60_000;
 const SERVICES=new Set(['PLAYLIST','AUDIO','VIDEO','IMAGE','FILE']);
@@ -95,9 +96,11 @@ export async function uploadResource(service:ResourceService,name:string,identif
     delete journal[key(ref)];saveJournal();
     throw Object.assign(new Error('The previous upload is now confirmed readable. Its reference is saved. No new file was uploaded; choose Upload or Publish again if you intended to replace it.'),{ref,recovered:true});
   }
-  if(file&&file.size>TEXT_MAX_BYTES)throw new Error('Files supplied by the app are limited to 1 MiB. Use Home’s picker for larger media.');
-  const staged=await qdnRequest(file?{action:'STAGE_QDN_PUBLISH_SOURCE',bytesBase64:encode(new Uint8Array(await file.arrayBuffer())),fileName:file.name,mimeType:file.type||'application/octet-stream'}:{action:'SELECT_QDN_PUBLISH_SOURCE',kind:'file'});
+  if(file&&['FILE','PLAYLIST'].includes(service)&&file.size>TEXT_MAX_BYTES)throw new Error('Text resources are limited to 1 MiB.');
+  const usePicker=!file||file.size>STAGED_FILE_MAX_BYTES;
+  const staged=await qdnRequest(!usePicker&&file?{action:'STAGE_QDN_PUBLISH_SOURCE',bytesBase64:encode(new Uint8Array(await file.arrayBuffer())),fileName:file.name,mimeType:file.type||'application/octet-stream'}:{action:'SELECT_QDN_PUBLISH_SOURCE',kind:'file'});
   if(!record(staged)||staged.canceled===true||typeof staged.sourceToken!=='string'||!staged.sourceToken)throw new Error('File selection or staging was cancelled.');
+  if(usePicker&&file&&(staged.fileName!==file.name||staged.size!==file.size))throw new Error(`Select the matching file: ${file.name} (${file.size} bytes). Nothing was published.`);
   await owned(name,expectedAddress);
   // Do not impose a short timeout on a user approval/signing operation.
   journal[key(ref)]={ref,address:expectedAddress};saveJournal();

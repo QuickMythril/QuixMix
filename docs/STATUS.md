@@ -77,7 +77,7 @@ npm run test:browser
 
 The editor's separate hardcoded light palette was replaced with shared semantic
 colors, fixing its mismatch with the player. System/Light/Dark selection now
-persists locally. System follows the device even inside Home; Home's accent is
+persists locally. This was the initial behavior: System followed the device even inside Home; Home's accent was
 independent, restricted to named supported colors, and scoped to controls and
 highlights. Gateway/domain-mapped defaults remain neutral. Lexend Variable is
 bundled locally with its font license and used in the UI, lyrics and commentary.
@@ -121,3 +121,23 @@ serialization directly against Core's current RegisterName transformer.
 - This supersedes the initial no-publication status above. Installed Home and
   physical Android acceptance, including the first real playlist upload, remain
   user acceptance work. The publisher account's private material is outside git.
+
+## Folder authoring and Home theme correction — 2026-09-16
+
+System now follows qdnTheme inside Home, including live changes, and the OS outside
+Home. Manual choices still override. This supersedes the initial Home theme policy
+above. Create playlist now starts with folder import, compact pairing review and
+local preview; the manual resource editor remains in Advanced. A guided upload
+queue stages files up to Home's 25 MiB cap and uses its native picker for larger
+files, checks selection metadata, retains completed uploads in-session, and waits
+for dependencies before publishing PLAYLIST. SRT imports convert to WebVTT while
+preserving source timestamps. Exact import maps handle existing album layouts.
+No Home source changes are included. Pilot assets remain local and unchanged.
+
+Release 0.2.0 validation: 103 unit/contract tests and 26 browser tests passed.
+The local pilot imported 13 tracks / 65 files, excluded historical/unused files,
+and loaded both actual media versions. All 26 SRT conversions (1,306 cues)
+preserved text and start/end timestamps; all 13 approved video subtitle SHA-256
+hashes remained unchanged. Only You and Anthem retained distinct durations and
+restart behavior. Mobile 390px imported-album bounds were checked. These are local
+Chromium and mocked publishing proofs, not a claim of a completed album upload.

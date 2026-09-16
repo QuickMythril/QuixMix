@@ -474,3 +474,29 @@ it('does not resubmit when the publication response is lost', async () => {
   await expect(uploadResource('FILE',NAME,'lost-response-test',ADDRESS,file)).rejects.toThrow('unresolved outcome');
   expect(publishes).toBe(1);
 });
+
+describe('folder media upload handoff', () => {
+  it('stages media larger than 1 MiB without reopening a picker', async () => {
+    const ref = { service: 'AUDIO', name: NAME, identifier: 'folder-audio' };
+    requestMock.mockImplementation(async request => {
+      const context = contextResponse(request as Request); if (context !== undefined) return context;
+      if (request.action === 'STAGE_QDN_PUBLISH_SOURCE') return { sourceToken: 'folder-staged' };
+      if (request.action === 'PUBLISH_QDN_RESOURCE') return { accepted: true, transactionSignature: 'folder-sig' };
+      if (request.action === 'LIST_QDN_RESOURCES') return [{ ...ref, latestSignature: 'folder-sig' }];
+      if (request.action === 'GET_QDN_RESOURCE_STATUS') return { status: 'READY' };
+      throw Error(`Unexpected ${request.action}`);
+    });
+    await expect(uploadResource('AUDIO', NAME, ref.identifier, ADDRESS, new File([new Uint8Array(2*1024*1024)], 'song.mp3', {type:'audio/mpeg'}))).resolves.toEqual(ref);
+    expect(requestMock.mock.calls.some(([r]) => r.action === 'SELECT_QDN_PUBLISH_SOURCE')).toBe(false);
+  });
+  it('rejects a mismatching native selection before publishing a large video', async () => {
+    requestMock.mockImplementation(async request => {
+      const context = contextResponse(request as Request); if (context !== undefined) return context;
+      if (request.action === 'SELECT_QDN_PUBLISH_SOURCE') return {sourceToken:'wrong',fileName:'other.mp4',size:30*1024*1024};
+      throw Error(`Unexpected ${request.action}`);
+    });
+    await expect(uploadResource('VIDEO', NAME, 'large-video', ADDRESS, new File([new Uint8Array(30*1024*1024)], 'song.mp4'))).rejects.toThrow(/matching file/);
+    expect(requestMock.mock.calls.some(([r]) => r.action === 'PUBLISH_QDN_RESOURCE')).toBe(false);
+    expect(requestMock.mock.calls.some(([r]) => r.action === 'STAGE_QDN_PUBLISH_SOURCE')).toBe(false);
+  });
+});

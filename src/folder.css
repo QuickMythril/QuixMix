@@ -1,0 +1,27 @@
+.folder-creator { --editor-line: var(--border); --editor-ink: var(--ink); --editor-muted: var(--muted); display: grid; gap: 1rem; margin: 1.5rem 0; }
+.folder-creator .editor-heading { display: block; }
+.folder-creator h2 { margin: .4rem 0; }
+.folder-creator .editor-card { display: grid; gap: .7rem; }
+.folder-creator p { margin: .3rem 0; }
+.folder-creator label { display: grid; gap: .45rem; }
+.folder-creator input, .folder-creator select { width: 100%; }
+.folder-creator details p { margin: .8rem 0; }
+.folder-picker { position: relative; width: fit-content; font-weight: 650; padding: .8rem 1rem; border-radius: .55rem; background: var(--accent); color: var(--on-accent); cursor: pointer; }
+.folder-picker:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+.folder-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.folder-picker:has(input:disabled) { opacity: .55; cursor: wait; }
+.folder-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .8rem; }
+.folder-track-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.folder-track-list li { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: .8rem 1rem; }
+.folder-track-list summary { display: flex; align-items: center; gap: 1rem; cursor: pointer; }
+.folder-number { color: var(--muted); font-variant-numeric: tabular-nums; }
+.folder-track-title { display: grid; gap: .3rem; flex: 1; min-width: 0; }
+.folder-track-title small, .folder-badges { color: var(--muted); font-size: .8rem; }
+.folder-track-list dl { margin-bottom: 0; font-size: .85rem; }
+.folder-track-list dl div { margin: .7rem 0; }
+.folder-track-list dt { color: var(--muted); }
+.folder-track-list dd { margin: .2rem 0 0; overflow-wrap: anywhere; }
+.folder-progress { overflow-wrap: anywhere; }
+.folder-publish progress { width: 100%; accent-color: var(--accent); }
+.advanced-editor { margin: 2rem 0; border-top: 1px solid var(--border); padding-top: 1rem; }
+@media (max-width: 600px) { .folder-track-list summary { flex-wrap: wrap; gap: .6rem; } .folder-badges { width: 100%; padding-left: 2rem; } }

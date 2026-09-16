@@ -41,8 +41,8 @@ for a different development Core. Browser development only permits reads.
 ## Appearance
 
 The **Theme** dropdown offers System (default), Light and Dark. System tracks the
-device preference live; a manual choice is saved locally and wins over system or
-Home theme messages. Player, preview and playlist editor share one palette.
+Home `qdnTheme` live inside Home and the device preference elsewhere. A manual
+choice is saved locally and overrides both. Player, preview and playlist editor share one palette.
 
 Surfaces stay neutral. In Home, named `qdnAccent` colors are read from the host
 query/globals and updated by `ACCENT_CHANGED` / `DISPLAY_SETTINGS_CHANGED`.
@@ -55,15 +55,23 @@ light text on dark backdrops for readability over audio artwork and video.
 
 ## Playlist authoring
 
-**Create playlist** edits resources, versions, offsets and track ordering, imports
-or exports JSON, and keeps a browser draft. In Home, owned-name selection enables
-source-token resource upload and PLAYLIST publication. Audio/video/image uploads
-use Home's picker; WebVTT and playlist JSON use staged bytes. Account ownership
-must still match immediately before publishing. No private keys belong in this app.
+**Create playlist** starts with a folder picker. Matching audio, video, cover and
+SRT/WebVTT filenames become ordered tracks without entering resource identifiers.
+Review the compact list, preview locally, connect your Home account, then publish.
+Separate audio/video subtitle files keep their own timestamps; no automatic time
+shifts are added. SRT is converted to WebVTT without changing the original files.
+See [folder import](docs/folder-import.md) for conventions and exact import maps.
 
-Upload resources before publishing their playlist. Publications are separate
-transactions; keep successful references in the draft and retry only missing
-resources. An accepted transaction is not automatically confirmed/readable.
+Files up to 25 MiB are staged directly in Home. Larger media use Home's picker,
+with filename and size checked against the selected album file. Home still owns
+approval/signing; no private keys belong in this app. Each completed upload is
+kept for this session. Pause stops after the current file, and Resume checks a
+pending publication before retrying. Keep the page open; folder file handles and
+upload progress are not restored after closing/reloading it. The PLAYLIST resource
+is published only after every dependency is confirmed readable.
+
+The former full resource editor is available under **Advanced: edit QDN references
+manually**, with JSON import/export, version offsets and browser drafts.
 
 ## Format
 
