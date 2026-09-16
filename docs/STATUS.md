@@ -106,3 +106,18 @@ input guards reject missing identity/account configuration and non-loopback node
 A read-only Claude Sonnet high-effort review found a name-lookup redirect gap;
 redirect following is now disabled there too. The parent verified registration
 serialization directly against Core's current RegisterName transformer.
+
+## Published release — 2026-09-16
+
+- Public source: https://github.com/QuickMythril/QuixMix, main commit `87b62fc`.
+- Resource: `qdn://APP/QuixMix/QuixMix`, title QuixMix, Previewnet.
+- Dedicated owner: `QbJc2MsUFXraahwhioVE4iCmJMJ9CETdpF`.
+- Name registration and APP publication both returned in Core's CONFIRMED search.
+- Registration: `3a6wiNBSyBFhTq41otGWP5LS3ipaixDucGe5pCrqLcwSXoWZYQiaEN6vajN6623wJToAPUpSngiStqc2RnTiPyao`.
+- Publication: `eyHiT7ksvqnQrEbEbLE4gmoiCWzy2oCvoEXVG6cmzRk6S7VdSXpLxFzds1LBkSmmY5VjSCKd66gS8oxypYLF1ss`.
+- All 12 served files match the clean-main production build byte-for-byte.
+- Core render route opened successfully in Chromium; actual demo video playback
+  advanced, the dark editor rendered, and there were no page errors.
+- This supersedes the initial no-publication status above. Installed Home and
+  physical Android acceptance, including the first real playlist upload, remain
+  user acceptance work. The publisher account's private material is outside git.

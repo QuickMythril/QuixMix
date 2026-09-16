@@ -2,6 +2,11 @@
 
 ## Change Entries
 
+### 2026-09-16 — Record the verified QuixMix Previewnet release
+
+Record the GitHub source, confirmed dedicated-name registration and APP publication,
+exact served-file verification and successful QDN-rendered playback/editor smoke test.
+
 ### 2026-09-16 — Name the app QuixMix and prepare dedicated Previewnet publishing
 
 Brand the app QuixMix and document QuickMythril/QuixMix. Require an explicit
