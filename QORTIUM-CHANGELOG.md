@@ -2,6 +2,11 @@
 
 ## Change Entries
 
+### 2026-09-16 — Record the verified QuixMix folder-import release
+
+Record the confirmed 0.2.0 QDN publication, exact build-file comparison and live
+render verification of host theme following and local pilot folder preview.
+
 ### 2026-09-16 — Simplify album creation with folder import and Home theme following
 
 Follow Home's qdnTheme in System mode while retaining manual overrides and device

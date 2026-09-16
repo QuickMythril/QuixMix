@@ -141,3 +141,10 @@ preserved text and start/end timestamps; all 13 approved video subtitle SHA-256
 hashes remained unchanged. Only You and Anthem retained distinct durations and
 restart behavior. Mobile 390px imported-album bounds were checked. These are local
 Chromium and mocked publishing proofs, not a claim of a completed album upload.
+
+0.2.0 publication: source `cd264de`, `APP/QuixMix/QuixMix`, confirmed signature
+`4dPFCLCxwn78Gev9NxaLsVAwM4KE7SdY9K9UNjmTZzWH2yAvvQMDLYbjHia6dE4FDfQfSchEWJVJ2stFBzzv6WTY`.
+All 12 served files match the production build. The published Core render route
+applied the supplied dark host theme against a light OS, imported the 13-track
+pilot and loaded its video preview without page errors. No pilot resources were
+published. Home source remains unchanged; large media still use its native picker.
