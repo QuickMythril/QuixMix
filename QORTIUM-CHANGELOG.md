@@ -2,6 +2,11 @@
 
 ## Change Entries
 
+### 2026-09-16 — Keep cover images inside the player frame
+
+Constrain audio covers to the player bounds so square artwork remains fully
+visible on wide desktop layouts and narrow mobile screens.
+
 ### 2026-09-16 — Build the initial QDN music player
 
 Add a local-first playlist player with paired audio/video versions, static covers,
