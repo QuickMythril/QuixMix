@@ -75,6 +75,43 @@ export const qdnClient:ResourceClient={
   async text(ref,signal){validateRef(ref);await waitReady(ref,signal);return decodeText(await request({action:'FETCH_QDN_RESOURCE',...ref,encoding:'base64',maxBytes:ENCODED_MAX_BYTES},signal));},
 };
 export async function loadPlaylist(name:string,identifier:string,signal?:AbortSignal):Promise<Playlist>{return parsePlaylist(await qdnClient.text({service:'PLAYLIST',name:name.trim(),identifier:identifier.trim()||'default'},signal));}
+export interface LibraryEntry{ref:ResourceRef;title:string;tracks?:number;created?:number;updated?:number}
+export interface Library{address:string;names:string[];entries:LibraryEntry[]}
+const LIBRARY_ACTIONS=['GET_SELECTED_ACCOUNT','GET_ACCOUNT_NAMES','SEARCH_QDN_RESOURCES','FETCH_QDN_RESOURCE'];
+const LIBRARY_LIMIT=100, LIBRARY_TITLE_FETCHES=40;
+/** Playlists published by the selected Home account's names. Null when Home cannot answer (no bridge or missing actions); never prompts. */
+export async function listOwnPlaylists(signal?:AbortSignal):Promise<Library|null>{
+  if(!hasHomeBridge())return null;
+  const available=await capabilities();
+  if(LIBRARY_ACTIONS.some(action=>!available.has(action)))return null;
+  const selected=await request({action:'GET_SELECTED_ACCOUNT'},signal);
+  if(!record(selected)||typeof selected.address!=='string'||!selected.address)throw new Error('No selected Home account.');
+  const owned=await request({action:'GET_ACCOUNT_NAMES',address:selected.address,maxBytes:256*1024},signal);
+  if(!Array.isArray(owned)||owned.some(n=>!record(n)||typeof n.name!=='string'))throw new Error('Home returned invalid owned names.');
+  const names=owned.map(n=>(n as {name:string}).name);
+  const entries:LibraryEntry[]=[];
+  if(names.length){
+    const found=await request({action:'SEARCH_QDN_RESOURCES',service:'PLAYLIST',names,exactMatchNames:true,includeMetadata:true,limit:LIBRARY_LIMIT,offset:0,reverse:true,maxBytes:1024*1024},signal);
+    if(!Array.isArray(found))throw new Error('Home returned an invalid playlist listing.');
+    const lower=new Set(names.map(n=>n.toLowerCase()));
+    for(const item of found){
+      if(!record(item)||typeof item.name!=='string'||!lower.has(item.name.toLowerCase()))continue;
+      const identifier=typeof item.identifier==='string'&&item.identifier?item.identifier:'default';
+      const ref:ResourceRef={service:'PLAYLIST',name:item.name,identifier};
+      try{validateRef(ref);}catch{continue;}
+      const metadata=record(item.metadata)?item.metadata:{};
+      entries.push({ref,title:typeof metadata.title==='string'&&metadata.title.trim()?metadata.title.trim():'',created:typeof item.created==='number'?item.created:undefined,updated:typeof item.updated==='number'?item.updated:undefined});
+    }
+  }
+  // Titles live inside the playlist JSON; read a bounded number so the list stays quick.
+  let index=0;
+  const worker=async()=>{for(;;){const at=index++;if(at>=entries.length||at>=LIBRARY_TITLE_FETCHES)return;const entry=entries[at];
+    try{const playlist=parsePlaylist(JSON.parse(decodeText(await request({action:'FETCH_QDN_RESOURCE',...entry.ref,encoding:'base64',maxBytes:ENCODED_MAX_BYTES},signal,10_000))));entry.title=playlist.title;entry.tracks=playlist.tracks.length;}
+    catch(error){if(signal?.aborted)throw error;/* Unreadable or not yet available: keep the identifier. */}}};
+  await Promise.all(Array.from({length:Math.min(3,entries.length)},worker));
+  for(const entry of entries)if(!entry.title)entry.title=entry.ref.identifier;
+  return {address:selected.address,names,entries};
+}
 export async function getPublishContext():Promise<{address:string;names:string[]}>{
   await requireActions('GET_SELECTED_ACCOUNT','GET_ACCOUNT_NAMES','PUBLISH_QDN_RESOURCE','STAGE_QDN_PUBLISH_SOURCE','SELECT_QDN_PUBLISH_SOURCE');
   // Current Home desktop and Android return {address,...}; names are a separate read.

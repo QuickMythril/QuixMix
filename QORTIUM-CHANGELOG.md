@@ -2,6 +2,18 @@
 
 ## Change Entries
 
+### 2026-09-17 — Show your playlists by default and link to a playlist directly
+
+Release 0.2.3. Inside Home, Listen now opens with the playlists published by
+the selected account's names, newest first, with each title and track count
+read from the playlist itself; pick one to play it, and Refresh after
+publishing. Listing uses only read actions, so it never prompts. Every opened
+QDN playlist now has a direct link of the form
+`qdn://APP/QuixMix/QuixMix#/playlist/<name>/<identifier>`, shown under the
+title with a Copy link button; opening QuixMix through such a link plays that
+playlist straight away, and the address updates as you switch playlists.
+Outside Home the link uses the page address instead.
+
 ### 2026-09-17 — Publish picker files first
 
 Release 0.2.2. Files over 25 MiB, which still need Home's file picker, are

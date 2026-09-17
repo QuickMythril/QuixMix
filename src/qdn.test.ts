@@ -8,6 +8,7 @@ vi.mock('./qdnRequest', () => ({
 
 import {
   getPublishContext,
+  listOwnPlaylists,
   publishPlaylist,
   qdnClient,
   ReadinessTimeoutError,
@@ -588,4 +589,60 @@ it('preserves selected-byte evidence when Home recovers a pending signature', as
   resolvePublication(ref,'recovered-signature',ADDRESS);
   expect(pendingPublications().find(e=>e.ref.identifier===ref.identifier)).toMatchObject({signature:'recovered-signature',expectedHash:'selected-hash'});
   expect(localStorage.setItem).toHaveBeenLastCalledWith('music.pending-publications.v1',expect.stringContaining('selected-hash'));
+});
+
+describe('own playlist library', () => {
+  const LIBRARY_ACTIONS = ['GET_SELECTED_ACCOUNT', 'GET_ACCOUNT_NAMES', 'SEARCH_QDN_RESOURCES', 'FETCH_QDN_RESOURCE'];
+  const playlistJson = (title: string, tracks = 1) => JSON.stringify({ ...playlistWithDependencies(), title, tracks: Array.from({ length: tracks }, (_, i) => ({ ...playlistWithDependencies().tracks[0], id: `t${i}` })) });
+
+  it('is unavailable without the bridge or its read actions, without prompting', async () => {
+    hasHomeBridgeMock.mockReturnValue(false);
+    expect(await listOwnPlaylists()).toBeNull();
+    hasHomeBridgeMock.mockReturnValue(true);
+    requestMock.mockImplementation(async (request) => { if (request.action === 'SHOW_ACTIONS') return ['GET_SELECTED_ACCOUNT']; throw new Error(`unexpected ${request.action}`); });
+    expect(await listOwnPlaylists()).toBeNull();
+    expect(requestMock.mock.calls.map(([r]) => r.action)).toEqual(['SHOW_ACTIONS']);
+  });
+
+  it('lists the selected account\'s playlists newest first with titles read from the JSON', async () => {
+    const calls: Request[] = [];
+    requestMock.mockImplementation(async (request) => {
+      calls.push(request as Request);
+      if (request.action === 'SHOW_ACTIONS') return LIBRARY_ACTIONS;
+      if (request.action === 'GET_SELECTED_ACCOUNT') return { address: ADDRESS };
+      if (request.action === 'GET_ACCOUNT_NAMES') return [{ name: NAME }, { name: 'SecondName' }];
+      if (request.action === 'SEARCH_QDN_RESOURCES') return [
+        { name: NAME, service: 'PLAYLIST', identifier: 'quixmix-list-b', created: 2, metadata: { title: 'Titled in metadata' } },
+        { name: 'SecondName', service: 'PLAYLIST', identifier: 'quixmix-list-a', created: 1 },
+        { name: 'Stranger', service: 'PLAYLIST', identifier: 'not-mine', created: 3 },
+        { name: NAME, service: 'PLAYLIST', identifier: 'broken', created: 0 },
+      ];
+      if (request.action === 'FETCH_QDN_RESOURCE') {
+        if (request.identifier === 'quixmix-list-b') return utf8Base64(playlistJson('Album B', 2));
+        if (request.identifier === 'quixmix-list-a') return utf8Base64(playlistJson('Album A'));
+        throw new Error('not available');
+      }
+      throw new Error(`unexpected ${request.action}`);
+    });
+    const library = await listOwnPlaylists();
+    expect(library).toMatchObject({ address: ADDRESS, names: [NAME, 'SecondName'] });
+    expect(library!.entries.map(e => [e.ref.name, e.ref.identifier, e.title, e.tracks])).toEqual([
+      [NAME, 'quixmix-list-b', 'Album B', 2],
+      ['SecondName', 'quixmix-list-a', 'Album A', 1],
+      [NAME, 'broken', 'broken', undefined],
+    ]);
+    const search = calls.find(c => c.action === 'SEARCH_QDN_RESOURCES')!;
+    expect(search).toMatchObject({ service: 'PLAYLIST', names: [NAME, 'SecondName'], exactMatchNames: true, includeMetadata: true, reverse: true });
+    expect(calls.filter(c => c.action === 'FETCH_QDN_RESOURCE').every(c => c.service === 'PLAYLIST' && c.encoding === 'base64')).toBe(true);
+  });
+
+  it('reports a name-less account as an empty library', async () => {
+    requestMock.mockImplementation(async (request) => {
+      if (request.action === 'SHOW_ACTIONS') return LIBRARY_ACTIONS;
+      if (request.action === 'GET_SELECTED_ACCOUNT') return { address: ADDRESS };
+      if (request.action === 'GET_ACCOUNT_NAMES') return [];
+      throw new Error(`unexpected ${request.action}`);
+    });
+    expect(await listOwnPlaylists()).toEqual({ address: ADDRESS, names: [], entries: [] });
+  });
 });

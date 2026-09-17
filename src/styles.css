@@ -654,3 +654,16 @@ footer {
 .intro h1 {
   overflow-wrap:anywhere}
 }
+
+/* Your playlists (Listen) */
+.library { margin-bottom: 2rem; }
+.library-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.library-heading h2 { margin: 0; font-size: 1.05rem; }
+.library-list { list-style: none; margin: .9rem 0 0; padding: 0; display: grid; gap: .5rem; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); }
+.library-item { width: 100%; text-align: left; display: grid; gap: .25rem; padding: .8rem 1rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); cursor: pointer; }
+.library-item:hover { border-color: var(--accent); }
+.library-item.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.library-title { font-weight: 650; overflow-wrap: anywhere; }
+.library-meta { font-size: .78rem; color: var(--muted); overflow-wrap: anywhere; }
+.share-link { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-top: .7rem; font-size: .8rem; color: var(--muted); }
+.share-link code { user-select: all; overflow-wrap: anywhere; font-size: .78rem; }
