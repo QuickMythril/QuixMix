@@ -2,6 +2,15 @@
 
 ## Change Entries
 
+### 2026-09-17 — Publish picker files first
+
+Release 0.2.2. Files over 25 MiB, which still need Home's file picker, are
+now published before everything else, so the hands-on part of an album
+publish finishes early and the remaining files run unattended. The order
+within each group is unchanged, and resume still keys on saved receipts, so
+albums already in progress carry on where they left off. The progress line
+says how many picker files remain.
+
 ### 2026-09-17 — Record the verified QuixMix resumable-publishing release
 
 Record the confirmed 0.2.1 APP transaction, exact served-build comparison and

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planFolder, forPublisher } from './folderPlan';
+import { planFolder, forPublisher, pickerFirst } from './folderPlan';
 import type { ImportedAlbum, ImportAsset } from './folderImport';
 const asset = (name: string, text = ''): ImportAsset => ({ path: name, file: new File([text], name) });
 const captions = '1\n00:02:36,861 --> 00:02:40,000\nAlready timed text\n';
@@ -44,6 +44,18 @@ describe('folder plans', () => {
     expect(target.playlist.tracks[0].versions.video?.lyrics?.name).toBe('Publisher');
     expect(plan.playlist.tracks[0].versions.video?.lyrics?.name).toBe('LocalFolder');
   });
+  it('publishes picker files first and keeps each group in plan order', async () => {
+    const plan = await planFolder(album());
+    const big = (path: string) => ({ ...plan.files[0], path, file: new File([new Uint8Array(3)], path), hash: path, ref: { ...plan.files[0].ref, identifier: path } });
+    const small = (path: string) => ({ ...big(path), file: new File([new Uint8Array(1)], path) });
+    const ordered = { ...plan, files: [small('a'), big('b'), small('c'), big('d')] };
+    const result = pickerFirst(ordered, 2);
+    expect(result.files.map(item => item.path)).toEqual(['b', 'd', 'a', 'c']);
+    expect(ordered.files.map(item => item.path)).toEqual(['a', 'b', 'c', 'd']);
+    expect(result.playlist).toBe(ordered.playlist);
+    expect(pickerFirst(ordered, 3).files).toEqual(ordered.files);
+  });
+
   it('rejects folders with no tracks before replacing the current import', async () => {
     await expect(planFolder({title:'Empty',tracks:[],warnings:[],ignored:[]})).rejects.toThrow(/No audio or video/);
   });

@@ -65,6 +65,15 @@ export function forPublisher(plan: FolderPlan, name: string, title: string): Fol
   return { ...plan, playlist: parsePlaylist(playlist), files: plan.files.map(item => ({ ...item, ref: { ...item.ref, name } })) };
 }
 
+/** Files that need a manual Home picker go first so the hands-on part of a
+ * publish happens up front and the rest can run unattended. Order within each
+ * group is unchanged; completion is keyed by resource identity, not position. */
+export function pickerFirst(plan: FolderPlan, maxDirectBytes: number): FolderPlan {
+  const manual = plan.files.filter(item => item.file.size > maxDirectBytes);
+  const direct = plan.files.filter(item => item.file.size <= maxDirectBytes);
+  return { ...plan, files: [...manual, ...direct] };
+}
+
 export function previewFolder(plan: FolderPlan): { client: ResourceClient; cleanup: () => void } {
   const files = new Map(plan.files.map(item => [item.ref.identifier, item.file]));
   const urls = new Map<string, string>();

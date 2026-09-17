@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import type { InputHTMLAttributes } from 'react';
 import type { Playlist, ResourceClient } from './model';
 import { importFolder, type ImportedAlbum } from './folderImport';
-import { forPublisher, planFolder, previewFolder, type FolderPlan } from './folderPlan';
+import { forPublisher, pickerFirst, planFolder, previewFolder, type FolderPlan } from './folderPlan';
 import { getPublishContext, submitPlaylist, uploadResource, STAGED_FILE_MAX_BYTES, forgetUnresolvedPublication, type JournalEntry } from './qdn';
 import { recoverFolder, reuseReferences, publicationKey, waitForSubmissionCapacity } from './publishResume';
 import { contentHash } from './contentHash';
@@ -49,18 +49,22 @@ export function FolderCreator({ onPreview, onPublished }: {
       const base = forPublisher(plan, name, title);
       const recovery = await recoverFolder(base, context.address, setProgress);
       setUnresolved(recovery.unresolved); setCheckedFailed(false);
-      const target = reuseReferences(base, recovery.matches);
+      const target = pickerFirst(reuseReferences(base, recovery.matches), STAGED_FILE_MAX_BYTES);
       frozen.current = target;
       completed.current = new Set([...recovery.matches.values()].map(publicationKey));
       setDone(completed.current.size);
       if (recovery.unresolved.length) throw new Error('An earlier publication still has an unknown outcome. Check the recovery details below before continuing.');
+      const manualLeft = target.files.filter(item => item.file.size > STAGED_FILE_MAX_BYTES && !completed.current.has(publicationKey(item.ref))).length;
+      let manualDone = 0;
       for (const item of target.files) {
         if (completed.current.has(publicationKey(item.ref))) continue;
         if (paused.current) { setProgress('Paused. Reselect this folder after reopening QuixMix to resume from saved receipts.'); return; }
         if (!await waitForSubmissionCapacity(context.address, setProgress, () => paused.current)) { setProgress('Paused. Submitted transactions are saved.'); return; }
-        setProgress(`${completed.current.size + 1} of ${target.files.length}: ${item.path}${item.file.size > STAGED_FILE_MAX_BYTES ? ' — select this file in Home’s picker' : ''}`);
+        const manual = item.file.size > STAGED_FILE_MAX_BYTES;
+        setProgress(`${completed.current.size + 1} of ${target.files.length}: ${item.path}${manual ? ` — select this file in Home’s picker (${manualDone + 1} of ${manualLeft} picker files; the rest run unattended)` : ''}`);
         await uploadResource(item.ref.service, name, item.ref.identifier, context.address, item.file, {waitForReady:false,expectedHash:item.hash});
         completed.current.add(publicationKey(item.ref)); setDone(completed.current.size);
+        if (manual) manualDone += 1;
       }
       if (paused.current) { setProgress('Files submitted. Resume to submit the playlist.'); return; }
       if (!await waitForSubmissionCapacity(context.address, setProgress, () => paused.current)) { setProgress('Paused before playlist submission.'); return; }
@@ -94,7 +98,7 @@ export function FolderCreator({ onPreview, onPublished }: {
       <div className="editor-card folder-publish"><h3>Publish your album</h3><p>QuixMix skips verified unchanged files and advances as soon as each transaction is submitted. Confirmation continues in the background. Home controls publication approval; choose “Allow for this tab” if your Home version offers it.</p>
         {!hasHomeBridge() ? <p className="hint">Open QuixMix in Home to publish. You can import and preview here.</p> : !context ? <button disabled={busy} onClick={() => void connect()}>Connect Home account</button> : <>
           <label>Publish under<select value={name} disabled={busy || !!frozen.current} onChange={e => setName(e.target.value)}>{context.names.map(n => <option key={n}>{n}</option>)}</select></label>
-          <p className="hint">Files over 25 MiB currently use Home’s picker. Receipts are saved on this device. After closing Home, choose the same folder and publishing account to resume. Pause stops after the current file.</p>
+          <p className="hint">Files over 25 MiB currently use Home’s picker and are published first, so the hands-on part finishes early and the rest runs unattended. Receipts are saved on this device. After closing Home, choose the same folder and publishing account to resume. Pause stops after the current file.</p>
           <div className="folder-actions"><button className="primary" disabled={busy || published} onClick={() => void publish()}>{published ? 'Submitted' : frozen.current ? 'Resume publishing' : 'Publish album'}</button>{busy && <button onClick={() => { paused.current = true; setProgress('Pausing after the current file…'); }}>Pause after this file</button>}{published && <button onClick={() => frozen.current && onPublished(frozen.current.playlist)}>Open album (waits for availability)</button>}</div>
           {!!frozen.current && <progress max={plan.files.length} value={done} aria-label="Files submitted or reused"/>}
         </>}
