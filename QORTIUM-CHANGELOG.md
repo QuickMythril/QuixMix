@@ -2,6 +2,12 @@
 
 ## Change Entries
 
+### 2026-09-17 — Record the verified QuixMix resumable-publishing release
+
+Record the confirmed 0.2.1 APP transaction, exact served-build comparison and
+published-route pilot import/preview. Home session approval remains a separate
+local patched build awaiting installed runtime acceptance.
+
 ### 2026-09-17 — Make album publishing resumable and advance on submission
 
 Release 0.2.1. Hash exact file bytes for stable identifiers and deduplication,

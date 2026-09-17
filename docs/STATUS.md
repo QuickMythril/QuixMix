@@ -183,3 +183,10 @@ A read-only Chromium smoke imported the actual 13-track pilot, deduplicated its
 65 references to 56 byte-distinct resources, reused the first published AUDIO,
 and stopped at staging the next VIDEO; all signing/publication actions were
 blocked by the test bridge. No page errors occurred.
+
+0.2.1 is published at APP/QuixMix/QuixMix from source `9292cbb251056182fc1ee63d69606911e282a119`.
+Transaction `5wdzAQrt4baJ8tx4BrjxUjwsDpwZULaywQoQpzBEgRy6isG8Qaa9EAkGCcrLyoVCfQkdE4BDouqYFqSFQ9p5KhBm`
+is confirmed and is the resource's latest signature. All 12 served files match
+the build byte-for-byte. The published Core route imported all 13 pilot tracks,
+showed the new submission queue copy, and previewed the first video at readyState 4
+with no page errors. Actual Home approval and album upload remain user acceptance.
