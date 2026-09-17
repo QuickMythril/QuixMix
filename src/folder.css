@@ -25,3 +25,6 @@
 .folder-publish progress { width: 100%; accent-color: var(--accent); }
 .advanced-editor { margin: 2rem 0; border-top: 1px solid var(--border); padding-top: 1rem; }
 @media (max-width: 600px) { .folder-track-list summary { flex-wrap: wrap; gap: .6rem; } .folder-badges { width: 100%; padding-left: 2rem; } }
+
+.folder-publish code { overflow-wrap: anywhere; }
+.folder-publish input[type="checkbox"] { width: auto; justify-self: start; }

@@ -11,6 +11,9 @@ import {
   publishPlaylist,
   qdnClient,
   ReadinessTimeoutError,
+  submitPlaylist,
+  pendingPublications,
+  resolvePublication,
   uploadResource,
 } from './qdn';
 import { hasHomeBridge, qdnRequest } from './qdnRequest';
@@ -470,7 +473,7 @@ it('does not resubmit when the publication response is lost', async () => {
     throw new Error(`Unexpected action ${request.action}`);
   });
   const file=new File(['text'],'lost.vtt');
-  await expect(uploadResource('FILE',NAME,'lost-response-test',ADDRESS,file)).rejects.toThrow('response was lost');
+  await expect(uploadResource('FILE',NAME,'lost-response-test',ADDRESS,file)).rejects.toThrow('transport disconnected');
   await expect(uploadResource('FILE',NAME,'lost-response-test',ADDRESS,file)).rejects.toThrow('unresolved outcome');
   expect(publishes).toBe(1);
 });
@@ -499,4 +502,90 @@ describe('folder media upload handoff', () => {
     expect(requestMock.mock.calls.some(([r]) => r.action === 'PUBLISH_QDN_RESOURCE')).toBe(false);
     expect(requestMock.mock.calls.some(([r]) => r.action === 'STAGE_QDN_PUBLISH_SOURCE')).toBe(false);
   });
+});
+
+describe('submission queue safety', () => {
+  function mockPublish(result: unknown) {
+    requestMock.mockImplementation(async raw => {
+      const request = raw as Request;
+      const context = contextResponse(request); if (context !== undefined) return context;
+      if (request.action === 'STAGE_QDN_PUBLISH_SOURCE') return {sourceToken:'queue-source'};
+      if (request.action === 'PUBLISH_QDN_RESOURCE') return result;
+      throw new Error(`Unexpected action ${request.action}`);
+    });
+  }
+  it('returns on acceptance without checking confirmation or READY', async () => {
+    mockPublish({accepted:true,transactionSignature:'queue-sig',immutable:{contentHash:'expected'}});
+    await expect(uploadResource('AUDIO',NAME,'queue-submitted',ADDRESS,new File(['sound'],'sound.mp3'),{waitForReady:false,expectedHash:'expected'})).resolves.toMatchObject({identifier:'queue-submitted'});
+    expect(requestMock.mock.calls.some(([r])=>r.action==='GET_QDN_RESOURCE_STATUS'||r.action==='LIST_QDN_RESOURCES')).toBe(false);
+    expect(localStorage.setItem).toHaveBeenLastCalledWith('music.pending-publications.v1',expect.stringContaining('queue-sig'));
+  });
+  it('fails before publication if the recovery journal cannot persist', async () => {
+    mockPublish({accepted:true,transactionSignature:'must-not-submit'});
+    vi.mocked(localStorage.setItem).mockImplementation(()=>{throw new Error('Quota exceeded');});
+    await expect(uploadResource('AUDIO',NAME,'queue-no-storage',ADDRESS,new File(['sound'],'sound.mp3'),{waitForReady:false,expectedHash:'expected'})).rejects.toThrow(/recovery could not be saved/);
+    expect(requestMock.mock.calls.some(([r])=>r.action==='PUBLISH_QDN_RESOURCE')).toBe(false);
+  });
+  it('retains a mismatching immutable hash and refuses to advance', async () => {
+    mockPublish({accepted:true,transactionSignature:'mismatch-sig',immutable:{contentHash:'different'}});
+    await expect(uploadResource('AUDIO',NAME,'queue-mismatch',ADDRESS,new File(['sound'],'sound.mp3'),{waitForReady:false,expectedHash:'expected'})).rejects.toThrow(/bytes that differ/);
+    expect(localStorage.setItem).toHaveBeenLastCalledWith('music.pending-publications.v1',expect.stringContaining('mismatch-sig'));
+  });
+  it('preserves Home error details while preventing automatic retry of unknown submission', async () => {
+    mockPublish(undefined);
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation(async r=>{if(r.action==='PUBLISH_QDN_RESOURCE')throw new Error('Home source expired');return base(r);});
+    const args = ['AUDIO',NAME,'queue-home-error',ADDRESS,new File(['sound'],'sound.mp3'),{waitForReady:false,expectedHash:'expected'}] as const;
+    await expect(uploadResource(...args)).rejects.toThrow(/Home source expired/);
+    await expect(uploadResource(...args)).rejects.toThrow(/unresolved outcome/);
+    expect(requestMock.mock.calls.filter(([r])=>r.action==='PUBLISH_QDN_RESOURCE')).toHaveLength(1);
+  });
+});
+
+
+it('keeps malformed acceptance responses unresolved instead of resubmitting', async () => {
+  let submits=0;
+  requestMock.mockImplementation(async r=>{
+    const context=contextResponse(r as Request);if(context!==undefined)return context;
+    if(r.action==='STAGE_QDN_PUBLISH_SOURCE')return {sourceToken:'malformed'};
+    if(r.action==='PUBLISH_QDN_RESOURCE'){submits++;return {transactionSignature:'maybe-submitted'};}
+    throw Error(`Unexpected ${r.action}`);
+  });
+  const args=['AUDIO',NAME,'malformed-acceptance',ADDRESS,new File(['sound'],'sound.mp3'),{waitForReady:false,expectedHash:'expected'}] as const;
+  await expect(uploadResource(...args)).rejects.toThrow(/Invalid publication response/);
+  await expect(uploadResource(...args)).rejects.toThrow(/unresolved outcome/);
+  expect(submits).toBe(1);
+});
+
+it('reuses an unchanged manifest on QDN even without a saved receipt', async () => {
+  const playlist=playlistWithDependencies();
+  const {parsePlaylist}=await import('./schema');
+  const {contentHash}=await import('./contentHash');
+  const text=JSON.stringify(parsePlaylist(playlist));
+  const hash=await contentHash(new TextEncoder().encode(text).buffer);
+  const identifier='quixmix-list-existing-manifest';
+  requestMock.mockImplementation(async r=>{
+    const context=contextResponse(r as Request);if(context!==undefined)return context;
+    if(r.action==='LIST_QDN_RESOURCES')return [{service:'PLAYLIST',name:NAME,identifier,latestSignature:'existing-manifest-sig'}];
+    if(r.action==='FETCH_QDN_RESOURCE')return utf8Base64(text);
+    if(r.action==='FETCH_NODE_API')return {ok:true,data:{signature:'existing-manifest-sig',name:NAME,identifier}};
+    throw Error(`Unexpected ${r.action}`);
+  });
+  await expect(submitPlaylist(playlist,NAME,identifier,ADDRESS,hash)).resolves.toMatchObject({service:'PLAYLIST',identifier});
+  expect(requestMock.mock.calls.some(([r])=>r.action==='PUBLISH_QDN_RESOURCE')).toBe(false);
+});
+
+
+it('preserves selected-byte evidence when Home recovers a pending signature', async () => {
+  const ref:ResourceRef={service:'AUDIO',name:NAME,identifier:'quixmix-pending-hash-evidence'};
+  requestMock.mockImplementation(async r=>{
+    const context=contextResponse(r as Request);if(context!==undefined)return context;
+    if(r.action==='STAGE_QDN_PUBLISH_SOURCE')return {sourceToken:'evidence'};
+    if(r.action==='PUBLISH_QDN_RESOURCE')throw Error('lost response');
+    throw Error(`Unexpected ${r.action}`);
+  });
+  await expect(uploadResource('AUDIO',NAME,ref.identifier,ADDRESS,new File(['bytes'],'song.mp3'),{waitForReady:false,expectedHash:'selected-hash'})).rejects.toThrow(/lost response/);
+  resolvePublication(ref,'recovered-signature',ADDRESS);
+  expect(pendingPublications().find(e=>e.ref.identifier===ref.identifier)).toMatchObject({signature:'recovered-signature',expectedHash:'selected-hash'});
+  expect(localStorage.setItem).toHaveBeenLastCalledWith('music.pending-publications.v1',expect.stringContaining('selected-hash'));
 });

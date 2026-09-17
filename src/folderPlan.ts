@@ -1,14 +1,16 @@
 import type { ImportedAlbum, ImportAsset } from './folderImport';
 import { subtitleToVtt } from './folderImport';
 import type { Playlist, ResourceClient, ResourceRef, TextRef } from './model';
+import { contentHash, hashFile } from './contentHash';
 import { parsePlaylist } from './schema';
 
-export interface PlannedFile { ref: ResourceRef; file: File; path: string }
+export interface PlannedFile { ref: ResourceRef; file: File; path: string; hash: string }
 export interface FolderPlan { playlist: Playlist; files: PlannedFile[]; identifier: string }
 
 export async function planFolder(album: ImportedAlbum): Promise<FolderPlan> {
   if (!album.tracks.length) throw new Error('No audio or video tracks found. Choose the album folder containing your media.');
-  const prefix = `quixmix-${Array.from(crypto.getRandomValues(new Uint8Array(12)), byte => byte.toString(16).padStart(2, '0')).join('')}`;
+  const identity = JSON.stringify({ title: album.title, tracks: album.tracks.map(t => ({id:t.id,title:t.title,artist:t.artist})) });
+  const prefix = `quixmix-album-${(await contentHash(new TextEncoder().encode(identity).buffer)).slice(0, 48)}`;
   const files: PlannedFile[] = [];
   const bySource = new Map<string, ResourceRef>();
   async function add(asset: ImportAsset | undefined, service: ResourceRef['service']): Promise<ResourceRef | undefined> {
@@ -22,8 +24,11 @@ export async function planFolder(album: ImportedAlbum): Promise<FolderPlan> {
       const text = subtitleToVtt(await file.text(), file.name);
       file = new File([text], file.name.replace(/\.(srt|vtt)$/i, '.vtt'), { type: 'text/vtt' });
     }
-    const ref: ResourceRef = { service, name: 'LocalFolder', identifier: `${prefix}-${files.length + 1}` };
-    files.push({ ref, file, path: asset.path });
+    const hash = await hashFile(file);
+    const same = files.find(item => item.ref.service === service && item.hash === hash);
+    if (same) { bySource.set(key, same.ref); return same.ref; }
+    const ref: ResourceRef = { service, name: 'LocalFolder', identifier: `quixmix-${hash.slice(0, 56)}` };
+    files.push({ ref, file, path: asset.path, hash });
     bySource.set(key, ref);
     return ref;
   }

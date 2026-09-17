@@ -2,6 +2,7 @@ import { hasHomeBridge, qdnRequest } from './qdnRequest';
 import type { QdnRequest } from './qdnRequest';
 import type { Playlist, ResourceClient, ResourceRef, ResourceService } from './model';
 import { parsePlaylist } from './schema';
+import { contentHash } from './contentHash';
 
 const TEXT_MAX_BYTES=1024*1024;
 export const STAGED_FILE_MAX_BYTES=25*1024*1024;
@@ -9,12 +10,12 @@ const ENCODED_MAX_BYTES=Math.ceil(TEXT_MAX_BYTES/3)*4+4;
 const READY_TIMEOUT=60_000;
 const SERVICES=new Set(['PLAYLIST','AUDIO','VIDEO','IMAGE','FILE']);
 const journalKey='music.pending-publications.v1';
-type JournalEntry={ref:ResourceRef;signature?:string;address:string};
+export type JournalEntry={ref:ResourceRef;signature?:string;address:string;contentHash?:string;expectedHash?:string};
 let journal:Record<string,JournalEntry>={};
 try{const saved:unknown=JSON.parse(localStorage.getItem(journalKey)||'{}');if(saved&&typeof saved==='object'&&!Array.isArray(saved))journal=saved as typeof journal;}catch{/* Browser storage can be unavailable. */}
 const key=(ref:ResourceRef)=>JSON.stringify([ref.service,ref.name,ref.identifier]);
 const record=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
-function saveJournal(){try{localStorage.setItem(journalKey,JSON.stringify(journal));}catch{/* Keep session recovery in memory. */}}
+function saveJournal(){try{localStorage.setItem(journalKey,JSON.stringify(journal));}catch{throw new Error('Publication recovery could not be saved. Enable storage for QuixMix before publishing.');}}
 export class ReadinessTimeoutError extends Error {
   readonly accepted=true;
   constructor(public ref:ResourceRef,public transactionSignature?:string){super(`Publish accepted for ${ref.service}/${ref.name}/${ref.identifier}, but the new version is not confirmed readable yet. The reference is saved; check readiness before retrying publication.`);this.name='ReadinessTimeoutError';}
@@ -85,12 +86,19 @@ export async function getPublishContext():Promise<{address:string;names:string[]
 }
 async function owned(name:string,expectedAddress:string){const context=await getPublishContext();if(context.address!==expectedAddress)throw new Error('Selected account changed. Reconnect the publishing account.');if(!context.names.some(n=>n.toLowerCase()===name.toLowerCase()))throw new Error(`The selected account does not own ${name}.`);}
 function encode(bytes:Uint8Array){let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(binary);}
-export async function uploadResource(service:ResourceService,name:string,identifier:string,expectedAddress:string,file?:File):Promise<ResourceRef>{
+export async function uploadResource(service:ResourceService,name:string,identifier:string,expectedAddress:string,file?:File,options:{waitForReady?:boolean;expectedHash?:string}={}):Promise<ResourceRef>{
   const ref:ResourceRef={service,name,identifier};validateRef(ref);await owned(name,expectedAddress);
   // A prior accepted transaction is checked rather than blindly republished.
   const pending=journal[key(ref)];
   if(pending&&record(pending)&&pending.address===expectedAddress){
     if(typeof pending.signature!=='string')throw new Error('A previous publication has an unresolved outcome. Check Home’s pending transactions before publishing this identifier again.');
+    if(options.expectedHash && pending.contentHash && pending.contentHash!==options.expectedHash)throw new Error('The previous publication contained different file bytes. Review it before continuing.');
+    if(options.waitForReady===false){
+      if(options.expectedHash&&pending.contentHash!==options.expectedHash)throw new Error('Saved publication bytes are not verified. Run recovery before continuing.');
+      const lookup=await request({action:'FETCH_NODE_API',path:`/transactions/signature/${encodeURIComponent(pending.signature)}`,maxBytes:256*1024});
+      if(!record(lookup)||lookup.ok!==true||!record(lookup.data)||lookup.data.signature!==pending.signature||lookup.data.name!==name||lookup.data.identifier!==identifier)throw new Error('The saved transaction is not verified on this node. Check recovery before retrying.');
+      return ref;
+    }
     try{await waitReady(ref,undefined,pending.signature);}
     catch{throw new ReadinessTimeoutError(ref,pending.signature);}
     delete journal[key(ref)];saveJournal();
@@ -103,19 +111,28 @@ export async function uploadResource(service:ResourceService,name:string,identif
   if(usePicker&&file&&(staged.fileName!==file.name||staged.size!==file.size))throw new Error(`Select the matching file: ${file.name} (${file.size} bytes). Nothing was published.`);
   await owned(name,expectedAddress);
   // Do not impose a short timeout on a user approval/signing operation.
-  journal[key(ref)]={ref,address:expectedAddress};saveJournal();
+  journal[key(ref)]={ref,address:expectedAddress,expectedHash:options.expectedHash};
+  try{saveJournal();}catch(error){delete journal[key(ref)];throw error;}
   let result:unknown;
   try{result=await qdnRequest({action:'PUBLISH_QDN_RESOURCE',...ref,sourceToken:staged.sourceToken});}
-  catch{throw new Error('Publication response was lost. Its outcome is unknown; check Home’s pending transactions before retrying.');}
+  catch(error){
+    const detail=error instanceof Error?error.message:record(error)&&typeof error.message==='string'?error.message:'No error details returned.';
+    if(record(error)&&error.outcome==='not-submitted'){delete journal[key(ref)];saveJournal();throw Object.assign(new Error(`Home did not submit this file: ${detail}`),{outcome:'not-submitted'});}
+    throw new Error(`Home publishing failed: ${detail}. Submission is not verified; check recovery before retrying.`);
+  }
   if(!record(result)||result.accepted!==true){
-    if(record(result)&&result.outcome==='unknown'){journal[key(ref)]={ref,address:expectedAddress};saveJournal();throw new Error('Publication outcome is unknown. Check Home’s pending transactions before retrying.');}
-    if(!record(result))throw new Error('Invalid publication response. Check Home’s pending transactions before retrying.');
+    if(record(result)&&result.outcome==='unknown'){journal[key(ref)]={ref,address:expectedAddress,expectedHash:options.expectedHash,signature:typeof result.transactionSignature==='string'?result.transactionSignature:undefined};saveJournal();throw new Error(`Publication outcome is unknown. ${typeof result.error==='string'?result.error+' ':''}Check Home’s pending transactions before retrying.`);}
+    if(!record(result)||result.accepted!==false)throw new Error('Invalid publication response. Check Home’s pending transactions before retrying.');
     delete journal[key(ref)];saveJournal();
     throw new Error(typeof result.error==='string'?result.error:'Publication was cancelled or rejected.');
   }
   const signature=typeof result.transactionSignature==='string'?result.transactionSignature:undefined;
-  journal[key(ref)]={ref,signature,address:expectedAddress};saveJournal();
+  const reportedHash=record(result.immutable)&&typeof result.immutable.contentHash==='string'?result.immutable.contentHash:undefined;
+  journal[key(ref)]={ref,signature,address:expectedAddress,contentHash:reportedHash??(!usePicker?options.expectedHash:undefined),expectedHash:options.expectedHash};saveJournal();
+  if(options.expectedHash&&reportedHash&&reportedHash!==options.expectedHash)throw new Error('Home published bytes that differ from the selected file. The receipt is retained; review the file selection.');
+  if(options.expectedHash&&usePicker&&!reportedHash)throw new Error('Home did not verify the selected file bytes. The transaction receipt is saved; check recovery before continuing.');
   if(!signature)throw new ReadinessTimeoutError(ref);
+  if(options.waitForReady===false)return ref;
   try{await waitReady(ref,undefined,signature);}catch{throw new ReadinessTimeoutError(ref,signature);}
   delete journal[key(ref)];saveJournal();return ref;
 }
@@ -130,4 +147,32 @@ export async function publishPlaylist(playlist:Playlist,name:string,identifier:s
   const file=new File([JSON.stringify(valid)],`${identifier}.json`,{type:'application/json'});
   try{const ref=await uploadResource('PLAYLIST',name,identifier,expectedAddress,file);return {accepted:true,ready:true,ref};}
   catch(error){if(error instanceof ReadinessTimeoutError)return {accepted:true,ready:false,ref:error.ref,transactionSignature:error.transactionSignature};throw error;}
+}
+
+export function pendingPublications(): JournalEntry[] { return Object.values(journal).filter(value=>record(value)&&record(value.ref)&&typeof value.address==='string'); }
+export function resolvePublication(ref:ResourceRef,signature:string,expectedAddress:string,hash?:string) {
+  validateRef(ref);
+  const prior=journal[key(ref)];
+  journal[key(ref)]={ref,signature,address:expectedAddress,contentHash:hash,expectedHash:prior?.address===expectedAddress?prior.expectedHash:undefined}; saveJournal();
+}
+export function forgetUnresolvedPublication(ref:ResourceRef,address:string) {
+  const entry=journal[key(ref)];
+  if(entry?.address!==address)throw new Error('Publication account changed.');
+  delete journal[key(ref)];
+  try{saveJournal();}catch(error){journal[key(ref)]=entry;throw error;}
+}
+export async function submitPlaylist(playlist:Playlist,name:string,identifier:string,address:string,expectedHash:string) {
+  const valid=parsePlaylist(playlist);
+  const ref:ResourceRef={service:'PLAYLIST',name,identifier};
+  if(!journal[key(ref)]){
+    const signature=await latestSignature(ref);
+    if(signature){
+      const text=decodeText(await request({action:'FETCH_QDN_RESOURCE',...ref,encoding:'base64',maxBytes:ENCODED_MAX_BYTES}));
+      const hash=await contentHash(new TextEncoder().encode(text).buffer);
+      if(hash!==expectedHash)throw new Error('The existing playlist identifier contains different bytes. Review it before replacing it.');
+      if(await latestSignature(ref)!==signature)throw new Error('The playlist changed during recovery. Check again before publishing.');
+      resolvePublication(ref,signature,address,hash);
+    }
+  }
+  return uploadResource('PLAYLIST',name,identifier,address,new File([JSON.stringify(valid)],`${identifier}.json`,{type:'application/json'}),{waitForReady:false,expectedHash});
 }

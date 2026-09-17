@@ -51,9 +51,28 @@ same timeline. Default is restart. Timestamps already adjusted in the source SRT
 are preserved. SRT conversion changes the container syntax to WebVTT, not timing.
 
 Import/preview is local. Publishing uses separate AUDIO, VIDEO, IMAGE and FILE
-resources and finally a PLAYLIST resource. QuixMix makes resource identifiers;
-users only choose their publishing name. A fresh import gets fresh identifiers,
-so it does not overwrite a different album. Completed uploads can be resumed
-within the current session. A lost/unknown Home response stops the queue; inspect
-Home's pending transactions before retrying an unresolved identifier. Do not
-reload the page during publishing.
+resources and finally a PLAYLIST resource. QuixMix hashes the exact published
+bytes (after SRT conversion), makes stable content identifiers, and shares identical
+files within the same service. Changed bytes get a new identifier. The final
+playlist also gets a content-derived identifier so unchanged retries are stable.
+
+Each accepted transaction receipt is saved before the queue advances. Confirmation
+is independent; the queue only waits for room when 20 account transactions are
+pending (Core's default per-account limit is 25). Pause stops before the next file.
+After closing Home, select the same folder and account, then Publish/Resume. Files
+are not stored in browser storage: you must reselect them. Keep QuixMix's storage
+intact; publication stops if it cannot save recovery data.
+
+Recovery checks saved signatures on the active node and compares previously
+published bytes, including old randomly numbered QuixMix resources. Resource
+listing sizes are compressed sizes, so they are not used as proof of a match.
+An interrupted/unknown response cannot be safely retried merely because it is
+missing on one node. Recovery shows its resource and known signature and consults
+Home's pending journal when supported. Only clear failed attempts after checking
+that they failed or were cancelled; clearing an uncertain attempt can duplicate it.
+
+Home controls approval. Updated Home can grant Qortium publishing for this app tab,
+account, owned name and current node route while unlocked. Existing desktop beta 11
+requires per-resource approval until updated. Files over 25 MiB always retain Home's
+native picker handoff. The album becomes playable as its submitted resources confirm
+and become available; Submitted does not mean confirmed or readable.

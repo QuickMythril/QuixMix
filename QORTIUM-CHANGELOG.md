@@ -2,6 +2,15 @@
 
 ## Change Entries
 
+### 2026-09-17 — Make album publishing resumable and advance on submission
+
+Release 0.2.1. Hash exact file bytes for stable identifiers and deduplication,
+persist receipts before advancing, and recover legacy uploads through byte
+comparison. Submit the playlist after all files are accepted or reused without
+waiting for individual confirmations; pause at 20 pending account transactions.
+Preserve Home errors and require explicit recovery for uncertain attempts.
+Document the separate Home update needed for session approval.
+
 ### 2026-09-16 — Record the verified QuixMix folder-import release
 
 Record the confirmed 0.2.0 QDN publication, exact build-file comparison and live

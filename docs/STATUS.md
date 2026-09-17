@@ -148,3 +148,38 @@ All 12 served files match the production build. The published Core render route
 applied the supplied dark host theme against a light OS, imported the 13-track
 pilot and loaded its video preview without page errors. No pilot resources were
 published. Home source remains unchanged; large media still use its native picker.
+
+## Submission and recovery update — 2026-09-17
+
+0.2.1 supersedes the folder queue's session-only progress and per-file readiness
+wait. The queue uses exact-byte SHA-256 identities, saves write-ahead attempts and
+accepted receipts, advances on submission, and reconstructs reuse after folder
+reselection. Old numbered QuixMix resources are compared by actual bytes. Unknown
+outcomes block automatic resubmission and expose an explicit checked-failure
+recovery action. Storage failures block publication. A 20-pending-transaction
+threshold leaves room below Core's default per-account cap of 25; lower custom
+node limits can still reject writes. PLAYLIST submission does not imply readiness.
+
+The user's first AUDIO/QuickMythril/quixmix-8347f9638e18a44cd6caf80f-1 is confirmed
+and exactly matches the pilot's first MP3 (SHA-256
+7765763a868a9ae204932d033c8f513186fb6d87c7becd91ce53faa963a27a53).
+The second attempt's original Home error was hidden by 0.2.0; its cause remains
+unknown. Closing Home does not remove the confirmed resource. No pilot media was
+published by this implementation work.
+
+A separate Home source change adds scoped session approval for Qortium publishing.
+That is not present in the user's existing desktop beta 11 installation. QuixMix
+cannot grant itself that authority. Home installation/live acceptance remains
+separate from the app's mocked bridge and browser checks.
+
+Validation: 126 unit/contract tests and TypeScript/production build pass. The full
+26-test browser suite passed, followed by all 4 folder browser tests on the final
+queue changes (27 distinct browser cases total). The latter include reload/resume
+without readiness checks and mobile unknown-outcome blocking/manual recovery.
+An independent publication-state review's receipt-preservation and lost-manifest
+findings were corrected and regression-tested.
+
+A read-only Chromium smoke imported the actual 13-track pilot, deduplicated its
+65 references to 56 byte-distinct resources, reused the first published AUDIO,
+and stopped at staging the next VIDEO; all signing/publication actions were
+blocked by the test bridge. No page errors occurred.

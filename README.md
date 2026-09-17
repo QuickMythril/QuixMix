@@ -63,12 +63,22 @@ shifts are added. SRT is converted to WebVTT without changing the original files
 See [folder import](docs/folder-import.md) for conventions and exact import maps.
 
 Files up to 25 MiB are staged directly in Home. Larger media use Home's picker,
-with filename and size checked against the selected album file. Home still owns
-approval/signing; no private keys belong in this app. Each completed upload is
-kept for this session. Pause stops after the current file, and Resume checks a
-pending publication before retrying. Keep the page open; folder file handles and
-upload progress are not restored after closing/reloading it. The PLAYLIST resource
-is published only after every dependency is confirmed readable.
+with filename/size checked before submission and Home's returned SHA-256 checked
+afterward. Home owns approval/signing; no private keys belong in this app.
+The folder queue advances on transaction submission, saves receipts, and checks
+existing bytes before reusing files. Reselect the same folder and account after
+closing Home to resume. Changed bytes receive new identifiers; identical files
+within a service are shared. Legacy random identifiers are recovered by comparing
+actual published bytes. Uncertain attempts stop for recovery rather than retrying
+automatically. The PLAYLIST is submitted after all files are submitted or verified;
+playback can wait until the resources confirm and become available.
+
+The queue waits when the account has 20 or more pending transactions, retaining
+headroom below Core's default limit of 25. A node configured with a lower limit
+can still reject a submission. Session approval requires the corresponding Home
+update; desktop beta 11's existing build still prompts per resource. The updated
+Home scope lasts only for the app tab, unlocked account, publishing name and node
+route. Large files still require native picker selections.
 
 The former full resource editor is available under **Advanced: edit QDN references
 manually**, with JSON import/export, version offsets and browser drafts.
