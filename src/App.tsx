@@ -20,14 +20,17 @@ export function App() {
   const [view,setView]=useState<'listen'|'edit'>('listen'), [revision,setRevision]=useState(0);
   const [name,setName]=useState(''), [identifier,setIdentifier]=useState(''), [error,setError]=useState(''), [loading,setLoading]=useState(false);
   const [current,setCurrent]=useState<ResourceRef|null>(null), [libraryKey,setLibraryKey]=useState(0), [copied,setCopied]=useState(false);
+  const currentRef=useRef<ResourceRef|null>(null);
   const pending=useRef<AbortController|null>(null);
   const [localClient,setLocalClient]=useState<ResourceClient|null>(null);
   const localCleanup=useRef<(()=>void)|null>(null);
-  const apply=(next:Playlist,isDemo=false,ref:ResourceRef|null=null)=>{pending.current?.abort();setLoading(false);setError('');localCleanup.current?.();localCleanup.current=null;setLocalClient(null);setPlaylist(next);setDemo(isDemo);setCurrent(ref);setCopied(false);setRoute(ref?playlistHash(ref):'');setRevision(r=>r+1);setView('listen');};
-  const open=async(openName=name,openIdentifier=identifier)=>{pending.current?.abort();const controller=new AbortController();pending.current=controller;setLoading(true);setError('');const ref:ResourceRef={service:'PLAYLIST',name:openName.trim(),identifier:openIdentifier.trim()||'default'};try{const next=await loadPlaylist(ref.name,ref.identifier,controller.signal);if(!controller.signal.aborted)apply(next,false,ref);}catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Could not open playlist.');}finally{if(pending.current===controller)setLoading(false);}};
+  const apply=(next:Playlist,isDemo=false,ref:ResourceRef|null=null)=>{pending.current?.abort();setLoading(false);setError('');localCleanup.current?.();localCleanup.current=null;setLocalClient(null);setPlaylist(next);setDemo(isDemo);setCurrent(ref);currentRef.current=ref;setCopied(false);setRoute(ref?playlistHash(ref):'');setRevision(r=>r+1);setView('listen');};
+  const open=async(openName=name,openIdentifier=identifier)=>{pending.current?.abort();const controller=new AbortController();pending.current=controller;setLoading(true);setError('');const ref:ResourceRef={service:'PLAYLIST',name:openName.trim(),identifier:openIdentifier.trim()||'default'};currentRef.current=ref;try{const next=await loadPlaylist(ref.name,ref.identifier,controller.signal);if(!controller.signal.aborted)apply(next,false,ref);}catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Could not open playlist.');}finally{if(pending.current===controller)setLoading(false);}};
   const openRef=(ref:ResourceRef)=>{setName(ref.name);setIdentifier(ref.identifier);void open(ref.name,ref.identifier);};
   // Direct links: #/playlist/<name>/<identifier>, on load and whenever the address changes.
-  useEffect(()=>{const follow=()=>{const route=parsePlaylistRoute(window.location.hash);if(route&&!(current&&current.name===route.name&&current.identifier===route.identifier))openRef({service:'PLAYLIST',...route});};follow();window.addEventListener('hashchange',follow);return()=>window.removeEventListener('hashchange',follow);// eslint-disable-next-line react-hooks/exhaustive-deps
+  // The listener reads the live ref, not render-time state: a hash event for the
+  // playlist already open (or one that is loading) must not reload and remount the player.
+  useEffect(()=>{const follow=()=>{const route=parsePlaylistRoute(window.location.hash);const now=currentRef.current;if(route&&!(now&&now.name===route.name&&now.identifier===route.identifier))openRef({service:'PLAYLIST',...route});};follow();window.addEventListener('hashchange',follow);return()=>window.removeEventListener('hashchange',follow);// eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
   const link=current?playlistLink(current,window.location,hasHomeBridge()):'';
   const copyLink=async()=>{try{await navigator.clipboard.writeText(link);setCopied(true);}catch{setCopied(false);setError('Copy is not available here. Select the link text and copy it.');}};

@@ -55,7 +55,14 @@ test('a direct link opens the playlist on load and the link can be copied', asyn
   await page.getByRole('button', { name: 'Copy link' }).click();
   await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('qdn://APP/QuixMix/QuixMix#/playlist/Owner/quixmix-list-second');
-  // Changing the address while open follows the new playlist.
+  // A hash event for the playlist already open must not reload it or remount the player.
+  await page.evaluate(() => { (window as any).fetches = 0; const inner = (window as any).qdnRequest; (window as any).qdnRequest = async (r: any) => { if (r.action === 'FETCH_QDN_RESOURCE' && r.service === 'PLAYLIST') (window as any).fetches++; return inner(r); }; });
+  await page.evaluate(() => { document.querySelector('video')!.setAttribute('data-mounted', 'yes'); });
+  await page.evaluate(() => { window.dispatchEvent(new HashChangeEvent('hashchange')); window.location.hash = '#/playlist/Owner/quixmix-list-second'; });
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => (window as any).fetches)).toBe(0);
+  await expect(page.locator('video[data-mounted="yes"]')).toHaveCount(1);
+  // Changing the address to another playlist follows it.
   await page.evaluate(() => { window.location.hash = '#/playlist/Owner/quixmix-list-first'; });
   await expect(page.locator('.intro h1')).toHaveText('First album');
 });

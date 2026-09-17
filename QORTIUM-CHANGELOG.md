@@ -2,6 +2,14 @@
 
 ## Change Entries
 
+### 2026-09-17 — Keep playing across a repeated address change
+
+Release 0.2.4. A hash change naming the playlist that is already open (or
+still loading) no longer reloads it: the 0.2.3 listener compared against a
+stale value, so any such event re-opened the playlist, remounted the player
+and left it showing "Preparing media…". Switching the address to a
+different playlist still follows it.
+
 ### 2026-09-17 — Show your playlists by default and link to a playlist directly
 
 Release 0.2.3. Inside Home, Listen now opens with the playlists published by
