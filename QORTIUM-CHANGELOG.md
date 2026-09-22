@@ -2,9 +2,13 @@
 
 ## Change Entries
 
+### 2026-09-22 — Release QuixMix 0.2.6
+
+Bump the version for the approved commentary-link opt-in update.
+
 ### 2026-09-22 — Make commentary opt-in through playlist links
 
-Unreleased. Hide the commentary checkbox, overlay and transcript by default.
+Release 0.2.6. Hide the commentary checkbox, overlay and transcript by default.
 A direct playlist URL ending in `?commentary=true` exposes and initially enables
 commentary; the listener can uncheck it. Preserve the option in copied links,
 skip commentary loading/prefetch without it, and update same-playlist options

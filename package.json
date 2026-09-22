@@ -1,6 +1,6 @@
 {
   "name": "quixmix",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "private": true,
   "license": "0BSD",
   "description": "QDN playlists with audio, video, lyrics and commentary",
