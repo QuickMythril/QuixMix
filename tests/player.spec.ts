@@ -1,3 +1,4 @@
+import { installCommentaryBridge, commentaryRoute } from './commentary-fixture';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const mediaSelector = 'video[aria-label="Current track media"]';
@@ -78,7 +79,10 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'First light', exact: true })).toBeVisible();
 });
 
-test('the demo plays and seeking updates the top commentary and bottom lyrics', async ({ page }) => {
+test('opted-in playback and seeking update top commentary and bottom lyrics', async ({ page }) => {
+  await installCommentaryBridge(page);
+  await page.goto(commentaryRoute);
+  await page.reload();
   await waitForMedia(page, '.mp4');
   const media = page.locator(mediaSelector);
 
@@ -287,7 +291,9 @@ test.describe('persisted Audio only', () => {
 test.describe('mobile player', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('has no horizontal overflow and keeps both overlays in fullscreen fallback', async ({ page }) => {
+  test('has no horizontal overflow and keeps both opted-in overlays in fullscreen fallback', async ({ page }) => {
+    await installCommentaryBridge(page);
+    await page.goto(commentaryRoute);
     await page.addInitScript(() => {
       Object.defineProperty(Element.prototype, 'requestFullscreen', {
         configurable: true,

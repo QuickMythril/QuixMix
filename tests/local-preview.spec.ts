@@ -31,10 +31,10 @@ test('invalid local timed text preserves the current playlist',async({page})=>{
   await expect(form.getByRole('alert')).toBeVisible();
   await expect(page.getByRole('heading',{name:'First light',exact:true})).toBeVisible();
 });
-test('container fullscreen retains both text overlays',async({page})=>{
+test('container fullscreen retains lyrics and hides commentary by default',async({page})=>{
   await page.goto('/');await expect(page.getByTestId('lyrics-overlay')).toBeVisible();
   await page.getByRole('button',{name:'Fullscreen',exact:true}).click();
-  await expect.poll(()=>page.evaluate(()=>Boolean(document.fullscreenElement?.querySelector('[data-testid="lyrics-overlay"]')&&document.fullscreenElement?.querySelector('[data-testid="commentary-overlay"]')))).toBe(true);
+  await expect.poll(()=>page.evaluate(()=>Boolean(document.fullscreenElement?.querySelector('[data-testid="lyrics-overlay"]')&&!document.fullscreenElement?.querySelector('[data-testid="commentary-overlay"]')))).toBe(true);
   await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>document.fullscreenElement===null)).toBe(true);
 });

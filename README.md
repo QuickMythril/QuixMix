@@ -22,11 +22,27 @@ Use **Open a QDN playlist** to load a publisher/identifier through Home's bridge
 or through the local Core in browser development. Set `VITE_QORTIUM_NODE_API_URL`
 for a different development Core. Browser development only permits reads.
 
+## Commentary links
+
+Commentary is hidden and disabled on normal playlist links, demo playback and
+local previews. To show its checkbox, timed overlay and transcript, append
+`?commentary=true` inside a direct playlist link's fragment:
+
+```text
+qdn://APP/QuixMix/QuixMix#/playlist/Owner/playlist-identifier?commentary=true
+```
+
+The checkbox starts checked; listeners can uncheck it during that visit.
+Copy link preserves the opt-in. Only a single, exact `commentary=true` enables
+it; missing, false, invalid or duplicated values leave it hidden. Commentary
+files are not loaded or prefetched without the opt-in. Changing this option
+on the current playlist does not restart its audio or video.
+
 ## Playback
 
 - Each playlist entry can contain AUDIO, VIDEO, or both versions.
 - Audio uses an optional IMAGE cover. Video plays its own embedded soundtrack.
-- Lyrics appear at the bottom; commentary at the top. Text follows the active
+- Lyrics appear at the bottom; opted-in commentary appears at the top. Text follows the active
   media clock, including seek, buffering, pause and playback-rate changes.
 - Fullscreen includes the video, overlays and controls. If the host rejects
   container fullscreen, an explicitly labelled expanded view preserves overlays.

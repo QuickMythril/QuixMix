@@ -2,6 +2,14 @@
 
 ## Change Entries
 
+### 2026-09-22 — Make commentary opt-in through playlist links
+
+Unreleased. Hide the commentary checkbox, overlay and transcript by default.
+A direct playlist URL ending in `?commentary=true` exposes and initially enables
+commentary; the listener can uncheck it. Preserve the option in copied links,
+skip commentary loading/prefetch without it, and update same-playlist options
+without reloading media. Let a single visible transcript use the full width.
+
 ### 2026-09-22 — Release QuixMix 0.2.5
 
 Bump the app version for the approved playlist-continuation update.

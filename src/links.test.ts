@@ -26,3 +26,22 @@ describe('playlist links', () => {
     expect(playlistLink(ref, { origin: 'http://localhost:5173', pathname: '/' }, false)).toBe('http://localhost:5173/#/playlist/Owner/quixmix-list-1');
   });
 });
+
+
+describe('commentary route option', () => {
+  it('parses options before decoding identifiers and rejects ambiguous opt-ins', () => {
+    expect(parsePlaylistRoute('#/playlist/Owner/id%3Fpart?commentary=true')).toEqual({name:'Owner',identifier:'id?part',commentary:true});
+    for (const query of ['', '?commentary=false', '?commentary=TRUE', '?commentary=1', '?commentary=true&commentary=false']) {
+      expect(parsePlaylistRoute('#/playlist/Owner/id'+query)).toEqual({name:'Owner',identifier:'id'});
+    }
+    expect(parsePlaylistRoute('#/playlist/Owner/id/?commentary=true')).toEqual({name:'Owner',identifier:'id',commentary:true});
+    expect(parsePlaylistRoute('#/playlist/Owner/id?other=x&commentary=true')).toEqual({name:'Owner',identifier:'id',commentary:true});
+  });
+  it('preserves the opt-in in generated and copied links', () => {
+    const ref={name:'Owner',identifier:'id?part'};
+    expect(parsePlaylistRoute(playlistHash(ref,true))).toEqual({...ref,commentary:true});
+    const location={origin:'http://localhost:4183',pathname:'/'};
+    expect(playlistLink(ref,location,true,true)).toBe('qdn://APP/QuixMix/QuixMix#/playlist/Owner/id%3Fpart?commentary=true');
+    expect(playlistLink(ref,location,false,true)).toBe('http://localhost:4183/#/playlist/Owner/id%3Fpart?commentary=true');
+  });
+});

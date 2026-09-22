@@ -13,7 +13,7 @@ function playbackError(error:unknown) {
   const detail=error&&typeof error==='object'&&'message' in error&&typeof error.message==='string'?error.message:'';
   return `Tap Play to continue.${detail?` ${detail}`:''}`;
 }
-export function Player({playlist,client}:{playlist:Playlist;client:ResourceClient}) {
+export function Player({playlist,client,commentaryEnabled=false}:{playlist:Playlist;client:ResourceClient;commentaryEnabled?:boolean}) {
   const media=useRef<HTMLVideoElement>(null), stage=useRef<HTMLDivElement>(null);
   const [audioOnly,setAudioOnly]=useState(savedAudioOnly);
   const [selection,setSelection]=useState<{index:number;kind:MediaKind;revision:number}>(()=>{
@@ -25,10 +25,11 @@ export function Player({playlist,client}:{playlist:Playlist;client:ResourceClien
   const [volume,setVolume]=useState(0.7), [rate,setRate]=useState(1);
   const [lyrics,setLyrics]=useState<Cue[]>([]), [commentary,setCommentary]=useState<Cue[]>([]);
   const [cover,setCover]=useState(''), [notice,setNotice]=useState(''), [textError,setTextError]=useState('');
-  const [showLyrics,setShowLyrics]=useState(true), [showCommentary,setShowCommentary]=useState(true);
+  const [showLyrics,setShowLyrics]=useState(true), [showCommentary,setShowCommentary]=useState(commentaryEnabled);
   const [textSize,setTextSize]=useState(1), [immersive,setImmersive]=useState(false), [fullscreen,setFullscreen]=useState(false);
   const [shuffle,setShuffle]=useState(false), [repeat,setRepeat]=useState<'off'|'all'|'one'>('off');
   const wantsPlay=useRef(false), pendingTime=useRef(0), abort=useRef<AbortController|null>(null), mediaGeneration=useRef(0);
+  useEffect(()=>setShowCommentary(commentaryEnabled),[commentaryEnabled]);
   const playAttempt=useRef<object|null>(null);
   const failed=useRef(new Set<number>()), history=useRef<number[]>([]), played=useRef(new Set<number>());
   const track=playlist.tracks[selection.index];
@@ -98,14 +99,23 @@ export function Player({playlist,client}:{playlist:Playlist;client:ResourceClien
       if(signal.aborted)return;el.src=url;el.load();setNotice('');
     }).catch(e=>fail(e instanceof Error?e.message:'Resource unavailable.'));
     if(track.cover&&kind==='audio') void client.mediaUrl(track.cover,signal).then(url=>{if(!signal.aborted)setCover(url);}).catch(()=>{});
+    return ()=>{controller.abort();el.removeEventListener('error',onError);el.pause();el.removeAttribute('src');el.load();};
+  },[selection,client,track,version,kind]);
+
+  // Text options must never tear down or reload the active media source.
+  useEffect(()=>{
+    const controller=new AbortController(), {signal}=controller;
+    setLyrics([]);setCommentary([]);setTextError('');
+    if(!track)return()=>controller.abort();
     for(const role of ['lyrics','commentary'] as const){
+      if(role==='commentary'&&!commentaryEnabled)continue;
       const ref=textRef(track,kind,role);if(!ref)continue;
       void client.text(ref,signal).then(value=>{
         const cues=parseVtt(value);if(!signal.aborted)(role==='lyrics'?setLyrics:setCommentary)(cues);
       }).catch(e=>{if(!signal.aborted)setTextError(prev=>`${prev?`${prev} `:''}${role}: ${e instanceof Error?e.message:'Could not load text.'}`);});
     }
-    return ()=>{controller.abort();el.removeEventListener('error',onError);el.pause();el.removeAttribute('src');el.load();};
-  },[selection,client,track,version,kind]);
+    return()=>controller.abort();
+  },[selection,client,track,kind,commentaryEnabled]);
 
   useEffect(()=>{
     const update=()=>setFullscreen(document.fullscreenElement===stage.current);
@@ -137,10 +147,10 @@ export function Player({playlist,client}:{playlist:Playlist;client:ResourceClien
     const nextVersion=nextKind?nextTrack.versions[nextKind]:undefined;
     if(!nextKind||!nextVersion)return;
     const controller=new AbortController(), tasks:Promise<unknown>[]=[client.mediaUrl(nextVersion.resource,controller.signal)];
-    for(const role of ['lyrics','commentary'] as const){const ref=textRef(nextTrack,nextKind,role);if(ref)tasks.push(client.text(ref,controller.signal));}
+    for(const role of ['lyrics','commentary'] as const){if(role==='commentary'&&!commentaryEnabled)continue;const ref=textRef(nextTrack,nextKind,role);if(ref)tasks.push(client.text(ref,controller.signal));}
     void Promise.allSettled(tasks);
     return ()=>controller.abort();
-  },[audioOnly,client,duration,playlist,repeat,selection.index,selection.kind,selection.revision,shuffle]);
+  },[audioOnly,client,commentaryEnabled,duration,playlist,repeat,selection.index,selection.kind,selection.revision,shuffle]);
 
   const play=async()=>{
     const el=media.current;if(!el)return;
@@ -202,7 +212,7 @@ export function Player({playlist,client}:{playlist:Playlist;client:ResourceClien
           onPlay={()=>setPlaying(true)} onPause={()=>setPlaying(false)} onWaiting={()=>setLoading(true)} onPlaying={()=>setLoading(false)}
           onSeeked={()=>{if(media.current)setTime(media.current.currentTime);}} onEnded={()=>advance('ended')}/>
         {kind==='audio'&&<div className="cover-surface">{cover?<img src={cover} alt={`${track?.title??'Track'} cover`} onError={()=>setCover('')}/>:<div className="cover-placeholder"><span>♫</span><strong>{track?.title??'Music'}</strong></div>}</div>}
-        {showCommentary&&activeCommentary.length>0&&<div className="cue-overlay commentary-overlay" data-testid="commentary-overlay">{activeCommentary.map(c=><p key={c.id}>{c.text}</p>)}</div>}
+        {commentaryEnabled&&showCommentary&&activeCommentary.length>0&&<div className="cue-overlay commentary-overlay" data-testid="commentary-overlay">{activeCommentary.map(c=><p key={c.id}>{c.text}</p>)}</div>}
         {showLyrics&&activeLyrics.length>0&&<div className="cue-overlay lyrics-overlay" data-testid="lyrics-overlay">{activeLyrics.map(c=><p key={c.id}>{c.text}</p>)}</div>}
         {loading&&<span className="loading-badge" role="status">Preparing media…</span>}
         <div className="stage-controls">
@@ -225,10 +235,10 @@ export function Player({playlist,client}:{playlist:Playlist;client:ResourceClien
       {notice&&<p className="notice" role="status">{notice}</p>}
       {audioOnly&&playlist.tracks.some(t=>!t.versions.audio)&&<p className="hint">Audio only is on. Video-only tracks are skipped.</p>}
       {textError&&<p className="notice" role="status">{textError} Playback is still available.</p>}
-      <div className="text-settings"><label><input type="checkbox" checked={showLyrics} onChange={e=>setShowLyrics(e.target.checked)}/> Lyrics</label><label><input type="checkbox" checked={showCommentary} onChange={e=>setShowCommentary(e.target.checked)}/> Commentary</label><label>Text size <select aria-label="Text size" value={textSize} onChange={e=>setTextSize(Number(e.target.value))}><option value=".85">Small</option><option value="1">Medium</option><option value="1.2">Large</option></select></label></div>
+      <div className="text-settings"><label><input type="checkbox" checked={showLyrics} onChange={e=>setShowLyrics(e.target.checked)}/> Lyrics</label>{commentaryEnabled&&<label><input type="checkbox" checked={showCommentary} onChange={e=>setShowCommentary(e.target.checked)}/> Commentary</label>}<label>Text size <select aria-label="Text size" value={textSize} onChange={e=>setTextSize(Number(e.target.value))}><option value=".85">Small</option><option value="1">Medium</option><option value="1.2">Large</option></select></label></div>
       <div className="transcripts">
         {showLyrics&&<Transcript title="Lyrics" cues={lyrics} active={activeLyrics} onSeek={c=>seek(seekTime(c,version?.timelineOffsetMs??0,lyricRef?.offsetMs??0))}/>}
-        {showCommentary&&<Transcript title="Commentary" cues={commentary} active={activeCommentary} onSeek={c=>seek(seekTime(c,version?.timelineOffsetMs??0,commentRef?.offsetMs??0))}/>}
+        {commentaryEnabled&&showCommentary&&<Transcript title="Commentary" cues={commentary} active={activeCommentary} onSeek={c=>seek(seekTime(c,version?.timelineOffsetMs??0,commentRef?.offsetMs??0))}/>}
       </div>
     </section>
     <aside className="queue"><div className="section-heading"><div><span className="eyebrow">UP NEXT</span><h2>Your playlist</h2></div><span className="count">{playlist.tracks.length}</span></div>
