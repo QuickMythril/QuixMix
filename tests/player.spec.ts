@@ -131,6 +131,8 @@ test('manual Next bypasses Repeat One', async ({ page }) => {
 
   await expect(page.getByRole('heading', { name: 'Quiet morning', exact: true })).toBeVisible();
   await waitForMedia(page, '.mp3');
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+  expect(await mediaTime(page)).toBe(0);
 });
 
 test('Audio only clears loading when an in-flight video leaves no eligible track', async ({ page }) => {
@@ -350,3 +352,63 @@ test('malformed JSON import leaves the active demo intact and reports an error',
   await page.getByRole('button', { name: 'Listen', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'First light', exact: true })).toBeVisible();
 });
+
+
+test('delayed QDN video advances and resumes after the next source loads', async ({ page }) => {
+  const playlist: TestPlaylist = {
+    kind: 'qortium-music-playlist', schemaVersion: 1, title: 'Delayed transitions',
+    tracks: ['first', 'second'].map(id => ({
+      id, title: `Delayed ${id}`, artist: 'Test', defaultVersion: 'video', switchPolicy: 'restart',
+      versions: { video: { resource: { service: 'VIDEO', name: 'TestPublisher', identifier: id } } },
+    })),
+  };
+  await openBridgePlaylist(page, playlist, {
+    first: '/demo/first-light.mp4', second: '/demo/first-light.mp4',
+  }, 1_200);
+  await waitForMedia(page, '.mp4');
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  // CDP reads avoid Playwright evaluate's synthetic user gestures.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Runtime.evaluate', { expression: `document.querySelector('video').currentTime = document.querySelector('video').duration - 7`, userGesture: false });
+  await page.waitForTimeout(9_000);
+  await expect(page.getByRole('heading', { name: 'Delayed second', exact: true })).toBeVisible();
+  await waitForMedia(page, '.mp4');
+  await expect.poll(() => mediaTime(page)).toBeGreaterThan(0.3);
+  await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+});
+
+for (const audioOnly of [false, true]) {
+  for (const repeat of ['off', 'one'] as const) {
+    test(`ready media resumes automatically: audioOnly=${audioOnly}, repeat=${repeat}`, async ({ page }) => {
+      // Model a host that rejects startup between metadata and playable data.
+      // This exercises a real event sequence without granting extra user gestures.
+      await page.addInitScript(() => {
+        const ready = new WeakSet<HTMLMediaElement>();
+        document.addEventListener('loadedmetadata', event => ready.delete(event.target as HTMLMediaElement), true);
+        document.addEventListener('canplay', event => ready.add(event.target as HTMLMediaElement), true);
+        const play = HTMLMediaElement.prototype.play;
+        HTMLMediaElement.prototype.play = function () {
+          if (!ready.has(this)) return Promise.reject(new DOMException('Media is not ready for playback.', 'NotAllowedError'));
+          return play.call(this);
+        };
+      });
+      await page.reload();
+      if (audioOnly) await page.getByLabel('Audio only').check();
+      await waitForMedia(page, audioOnly ? '.mp3' : '.mp4');
+      await page.getByLabel('Repeat').selectOption(repeat);
+      await page.getByRole('button', { name: 'Play', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Runtime.evaluate', {
+        expression: `document.querySelector('video').currentTime = document.querySelector('video').duration - .35`,
+        userGesture: false,
+      });
+      await page.waitForTimeout(1_500);
+      await expect(page.getByRole('heading', { name: repeat === 'one' ? 'First light' : 'Quiet morning', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+      await expect.poll(() => mediaTime(page)).toBeGreaterThan(.2);
+      await expect.poll(() => mediaTime(page)).toBeLessThan(10);
+      await expect(page.getByText(/Tap Play to continue/)).toHaveCount(0);
+    });
+  }
+}

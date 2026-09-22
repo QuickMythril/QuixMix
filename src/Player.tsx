@@ -8,7 +8,11 @@ function textRef(track:Track, kind:MediaKind, role:'lyrics'|'commentary'):TextRe
   const value=track.versions[kind]?.[role]; return value===null?undefined:value??track[role];
 }
 type AdvanceReason = 'ended'|'failure'|'manual';
-function isAbortError(error:unknown) { return error instanceof DOMException&&error.name==='AbortError'; }
+function isAbortError(error:unknown) { return !!error&&typeof error==='object'&&'name' in error&&error.name==='AbortError'; }
+function playbackError(error:unknown) {
+  const detail=error&&typeof error==='object'&&'message' in error&&typeof error.message==='string'?error.message:'';
+  return `Tap Play to continue.${detail?` ${detail}`:''}`;
+}
 export function Player({playlist,client}:{playlist:Playlist;client:ResourceClient}) {
   const media=useRef<HTMLVideoElement>(null), stage=useRef<HTMLDivElement>(null);
   const [audioOnly,setAudioOnly]=useState(savedAudioOnly);
@@ -25,6 +29,7 @@ export function Player({playlist,client}:{playlist:Playlist;client:ResourceClien
   const [textSize,setTextSize]=useState(1), [immersive,setImmersive]=useState(false), [fullscreen,setFullscreen]=useState(false);
   const [shuffle,setShuffle]=useState(false), [repeat,setRepeat]=useState<'off'|'all'|'one'>('off');
   const wantsPlay=useRef(false), pendingTime=useRef(0), abort=useRef<AbortController|null>(null), mediaGeneration=useRef(0);
+  const playAttempt=useRef<object|null>(null);
   const failed=useRef(new Set<number>()), history=useRef<number[]>([]), played=useRef(new Set<number>());
   const track=playlist.tracks[selection.index];
   const kind=selection.kind, version=track?.versions[kind];
@@ -35,7 +40,7 @@ export function Player({playlist,client}:{playlist:Playlist;client:ResourceClien
   snapshot.current={selection,audioOnly,shuffle,repeat,eligible,playlist};
 
   const release=useCallback(()=>{
-    mediaGeneration.current+=1;
+    mediaGeneration.current+=1;playAttempt.current=null;
     abort.current?.abort();
     const el=media.current; if(el){el.pause();el.removeAttribute('src');el.load();}
     setPlaying(false);setLoading(false);setTime(0);setDuration(0);setLyrics([]);setCommentary([]);setCover('');
@@ -81,6 +86,7 @@ export function Player({playlist,client}:{playlist:Playlist;client:ResourceClien
     if(!el||!version||!track){setNotice('No audio versions in this playlist. Turn off Audio only to play video.');return;}
     const controller=new AbortController();abort.current=controller;const {signal}=controller;
     let failureHandled=false;
+    el.preload=wantsPlay.current?'auto':'metadata';
     setLoading(true);setTextError('');setNotice('Preparing track…');
     const fail=(message:string)=>{
       if(signal.aborted||failureHandled)return;failureHandled=true;
@@ -138,7 +144,7 @@ export function Player({playlist,client}:{playlist:Playlist;client:ResourceClien
 
   const play=async()=>{
     const el=media.current;if(!el)return;
-    if(playing){wantsPlay.current=false;el.pause();return;}
+    if(playing){wantsPlay.current=false;playAttempt.current=null;el.pause();return;}
     wantsPlay.current=true;failed.current.clear();
     if(!el.getAttribute('src')){if(track)select(selection.index,kind);return;}
     if(el.ended){el.currentTime=0;played.current.clear();}
@@ -168,7 +174,19 @@ export function Player({playlist,client}:{playlist:Playlist;client:ResourceClien
     setDuration(Number.isFinite(el.duration)?el.duration:0);
     if(pendingTime.current){el.currentTime=Math.max(0,Math.min(pendingTime.current,Number.isFinite(el.duration)?Math.max(0,el.duration-.01):pendingTime.current));pendingTime.current=0;}
     setTime(el.currentTime);setLoading(false);
-    if(wantsPlay.current){const generation=mediaGeneration.current;void el.play().catch(error=>{if(generation!==mediaGeneration.current||isAbortError(error))return;wantsPlay.current=false;setNotice('Tap Play to continue.');});}
+  };
+  const onCanPlay=()=>{
+    const el=media.current;
+    // Metadata describes the source but does not mean it is ready to play.
+    // Ignore queued events from a released source and deduplicate readiness events.
+    if(!el||!el.getAttribute('src')||el.readyState<HTMLMediaElement.HAVE_FUTURE_DATA||!wantsPlay.current||!el.paused||playAttempt.current)return;
+    const generation=mediaGeneration.current, attempt={};playAttempt.current=attempt;
+    void el.play().then(()=>{
+      if(generation===mediaGeneration.current&&playAttempt.current===attempt)setNotice('');
+    }).catch(error=>{
+      if(generation!==mediaGeneration.current||playAttempt.current!==attempt||isAbortError(error))return;
+      wantsPlay.current=false;setNotice(playbackError(error));
+    }).finally(()=>{if(playAttempt.current===attempt)playAttempt.current=null;});
   };
   const activeLyrics=activeCues(lyrics,time,version?.timelineOffsetMs??0,lyricRef?.offsetMs??0);
   const activeCommentary=activeCues(commentary,time,version?.timelineOffsetMs??0,commentRef?.offsetMs??0);
@@ -180,7 +198,7 @@ export function Player({playlist,client}:{playlist:Playlist;client:ResourceClien
       </div>
       <div ref={stage} className={`player-stage ${immersive?'immersive':''} ${kind==='audio'?'audio-stage':''}`} style={{'--cue-scale':textSize} as React.CSSProperties}>
         <video ref={media} className={kind==='audio'?'audio-media':'video-media'} playsInline preload="metadata" aria-label="Current track media"
-          onLoadedMetadata={onMetadata} onTimeUpdate={()=>{if(media.current)setTime(media.current.currentTime);}}
+          onLoadedMetadata={onMetadata} onCanPlay={onCanPlay} onTimeUpdate={()=>{if(media.current)setTime(media.current.currentTime);}}
           onPlay={()=>setPlaying(true)} onPause={()=>setPlaying(false)} onWaiting={()=>setLoading(true)} onPlaying={()=>setLoading(false)}
           onSeeked={()=>{if(media.current)setTime(media.current.currentTime);}} onEnded={()=>advance('ended')}/>
         {kind==='audio'&&<div className="cover-surface">{cover?<img src={cover} alt={`${track?.title??'Track'} cover`} onError={()=>setCover('')}/>:<div className="cover-placeholder"><span>♫</span><strong>{track?.title??'Music'}</strong></div>}</div>}

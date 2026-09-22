@@ -2,6 +2,17 @@
 
 ## Change Entries
 
+### 2026-09-22 — Resume playlist playback when the next track is ready
+
+Unreleased. Request continuous playback on `canplay` rather than
+`loadedmetadata`, and load playable data when continuing a playlist. Ignore
+stale or duplicate readiness attempts, preserve cancellation handling across
+error realms, and include the browser's rejection reason if playback still
+needs a tap. Browser coverage includes delayed QDN loading, audio/video
+advance, and repeat-one with a simulated host that rejects premature playback.
+The reported live-tab failure still needs user acceptance; its exact browser
+rejection was not reproducible in an isolated Home profile.
+
 ### 2026-09-17 — Keep playing across a repeated address change
 
 Release 0.2.4. A hash change naming the playlist that is already open (or
