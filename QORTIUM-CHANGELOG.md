@@ -2,9 +2,13 @@
 
 ## Change Entries
 
+### 2026-09-22 — Release QuixMix 0.2.5
+
+Bump the app version for the approved playlist-continuation update.
+
 ### 2026-09-22 — Resume playlist playback when the next track is ready
 
-Unreleased. Request continuous playback on `canplay` rather than
+Release 0.2.5. Request continuous playback on `canplay` rather than
 `loadedmetadata`, and load playable data when continuing a playlist. Ignore
 stale or duplicate readiness attempts, preserve cancellation handling across
 error realms, and include the browser's rejection reason if playback still
